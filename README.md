@@ -2,6 +2,7 @@
 ## Dependencies
 [memc](https://github.com/SigmaBale/Memory)
 
+## About
 ccol is a collection of the most basic data structures you would find
 in any modern high level language.
 
