@@ -1,3 +1,12 @@
+/*
+ * This is a fun project I did to better undertsand self balanced
+ * binary search trees, if you seek maximum performance then I would
+ * reccommend GTK C library they implement the AVL Tree
+ * iterativly which can shorten the time for removal/insertion
+ * of new elements by just breaking out of the loop thus
+ * providing more tight-knit control and less instruction calls.
+ */
+
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,14 +17,17 @@
  * by at most one.
  * In case of AVL tree invariant violation, tree rebalancing is done
  * using left, right, left-right and right-left rotations.
- * AVLTree will always have O(log(n)) operational time complexity.
  *
  * Comparisons are done based on the comparison function provided upon
- * constructing the AVLTree (see fn avltree_new).
- *
- * There is also additional size field that contains the current
- * node count contained in the AVLTree.
+ * constructing the AVLTree, removals are done by the provided value
+ * removal function.
+ * If no value removal function is provided then the tree will not free
+ * the underlying memory of the value passed in when it gets removed
+ * from the tree.
+ * Meaning the user is responsible for freeing that memory in that
+ * specific case.
  */
+
 struct AVLTree {
     struct AVLNode* root;
     unsigned int    size;

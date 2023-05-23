@@ -1,5 +1,5 @@
 #include "../include/avltree.h"
-#include "../include/avltree_test.h"
+#include "avltree_test.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>

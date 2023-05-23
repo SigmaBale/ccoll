@@ -1,10 +1,10 @@
 #include "../include/avltree.h"
-#include "../include/avltree_test.h"
+#include "avltree_test.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
 
-//TODO: Fix tests also after fixing the API
+// TODO: Fix tests also after fixing the API
 void avltree_test_insert_nodup(void);
 void avltree_test_insert_dup(void);
 
