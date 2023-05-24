@@ -1,7 +1,7 @@
 #include <stddef.h>
 
-#ifndef AVLTREE_TEST_H
-#define AVLTREE_TEST_H
+#ifndef _CTREE_TEST_H_
+#define _CTREE_TEST_H_
 
 #ifndef PRINT_TEST_FILE
 #define PRINT_TEST_FILE(file) printf("\x1b[1;31m%s\x1b[0m\n", file);

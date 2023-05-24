@@ -1,32 +1,34 @@
+#define _CTREE_TEST_FILE_
+
 #include "../include/avltree.h"
-#include "avltree_test.h"
+#include "ctree_test.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
 
 // TODO: Fix tests also after fixing the API
-void avltree_test_insert_nodup(void);
-void avltree_test_insert_dup(void);
+void ctree_test_insert_nodup(void);
+void ctree_test_insert_dup(void);
 
 int
 main()
 {
     PRINT_TEST_FILE("[avltre_test_insert]")
     PRINT_TEST("avltree_test_insert_nodup")
-    avltree_test_insert_nodup();
+    ctree_test_insert_nodup();
     PRINT_SUCCESS
 
     PRINT_TEST("avltree_test_insert_dup")
-    avltree_test_insert_dup();
+    ctree_test_insert_dup();
     PRINT_SUCCESS
 
     return 0;
 }
 
 void
-avltree_test_insert_nodup(void)
+ctree_test_insert_nodup(void)
 {
-    Avltree_char tree = avltree_new((int (*)(void*, void*)) strcmp);
+    Avltree_char tree = ctree_new((int (*)(void*, void*)) strcmp);
     assert(tree != NULL);
 
     avltree_insert(tree, "Mark");
@@ -51,9 +53,9 @@ avltree_test_insert_nodup(void)
 }
 
 void
-avltree_test_insert_dup(void)
+ctree_test_insert_dup(void)
 {
-    Avltree_char tree = avltree_new((int (*)(void*, void*)) strcmp);
+    Avltree_char tree = ctree_new((int (*)(void*, void*)) strcmp);
     assert(tree != NULL);
 
     avltree_insert(tree, "Mark");
