@@ -33,9 +33,9 @@
  * Space complexity is O(n).
  */
 
-#define __CLIST_SOURCE_FILE__
+#define __COL_LIST_C_FILE__
 #include "clist.h"
-#undef __CLIST_SOURCE_FILE__
+#undef __COL_LIST_C_FILE__
 #include <assert.h>
 #include <memc.h>
 #include <stdbool.h>
@@ -76,9 +76,8 @@ struct CList {
     unsigned int len;
 };
 
-CListNode* node_new(cconstptr);
-
-cptr node_free(CListNode*);
+static CListNode* node_new(cconstptr);
+static cptr       node_free(CListNode*);
 
 /*
  * CList constructor, returns the pointer

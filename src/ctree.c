@@ -7,9 +7,9 @@
  * be rewritten with iterative approach.
  */
 
-#define __CTREE_SOURCE_FILE__
+#define __COL_TREE_C_FILE__
 #include "ctree.h"
-#undef __CTREE_SOURCE_FILE__
+#undef __COL_TREE_C_FILE__
 
 #include <memc.h>
 // TODO: Debug macro for turning on/off
@@ -101,32 +101,11 @@ struct _CTree {
 /*
  * Private declarations
  */
-CFlags* flags_new(void);
-void    flags_free(CFlags*);
-
-CTreeNode* ctreenode_new(cptr);
-CTreeNode* ctreenode_insert(CTree*, CTreeNode*, cptr);
-CTreeNode* ctreenode_remove(CTree*, CTreeNode*, cptr);
-void       ctreenode_free(CTreeNode*);
-void       ctreenode_freeall(CTree*, CTreeNode*);
-
-void       ctreenode_update(CTreeNode*);
-CTreeNode* ctreenode_rotate_right(CTreeNode*);
-CTreeNode* ctreenode_rotate_left(CTreeNode*);
-CTreeNode* ctreenode_rotate_left_right(CTreeNode*);
-CTreeNode* ctreenode_rotate_right_left(CTreeNode*);
-CTreeNode* ctreenode_rebalance(CTreeNode*);
-CTreeNode* ctreenode_find_left(CTreeNode*);
-CTreeNode* ctreenode_find_right(CTreeNode*);
-
-// Debug functions
-void print_tree(CTree*);
-void print_node(CTreeNode*);
 
 /*
  * Flags constructor
  */
-CFlags*
+static CFlags*
 flags_new(void)
 {
     CFlags* flags = memc_malloc(CFlags);
@@ -142,7 +121,7 @@ flags_new(void)
 /*
  * Flags destructor
  */
-void
+static void
 flags_free(CFlags* flags)
 {
     flags->inserted    = 0;
@@ -177,6 +156,61 @@ ctree_new(CCompareKeyFn compare_key_fn, CFreeKeyFn free_key_fn)
 }
 
 /*
+ * CTreeNode constructor
+ */
+static CTreeNode*
+ctreenode_new(cptr key)
+{
+    CTreeNode* node = memc_malloc(CTreeNode);
+    if(node != NULL) {
+        if((node->key = key) == NULL) {
+            free(node);
+            return NULL;
+        }
+        node->count   = 1;
+        node->height  = 0;
+        node->balance = 0;
+        node->right   = NULL;
+        node->left    = NULL;
+    }
+    return node;
+}
+
+/*
+ * CTreeNode destructor
+ */
+static void
+ctreenode_free(CTreeNode* node)
+{
+    node->height  = 0;
+    node->balance = 0;
+    node->count   = 0;
+    node->right   = NULL;
+    node->left    = NULL;
+    node->key     = NULL;
+    free(node);
+}
+
+/*
+ * Helper function for CTree destructor.
+ * Recursively frees all the nodes
+ */
+static void
+ctreenode_freeall(CTree* tree, CTreeNode* node)
+{
+    if(node != NULL) {
+        ctreenode_freeall(tree, node->left);
+        ctreenode_freeall(tree, node->right);
+
+        if(tree->free_key_fn)
+            tree->free_key_fn(node->key);
+
+        tree->size -= node->count;
+        ctreenode_free(node);
+    }
+}
+
+/*
  * CTree 'destructor', cleans up all the nodes
  * and itself.
  * Note: If the user didn't pass his own
@@ -199,58 +233,117 @@ ctree_free(CTree* tree)
 }
 
 /*
- * Helper function for CTree destructor.
- * Recursively frees all the nodes
+ * Updates the CTreeNode height and balance factor
  */
-void
-ctreenode_freeall(CTree* tree, CTreeNode* node)
+static void
+ctreenode_update(CTreeNode* node)
 {
-    if(node != NULL) {
-        ctreenode_freeall(tree, node->left);
-        ctreenode_freeall(tree, node->right);
+    int left      = (node->left != NULL) ? (int) node->left->height : -1;
+    int right     = (node->right != NULL) ? (int) node->right->height : -1;
+    node->height  = ((left > right) ? left : right) + 1;
+    node->balance = right - left;
+}
 
-        if(tree->free_key_fn)
-            tree->free_key_fn(node->key);
+/*
+ * Rotation function, performs right rotation, after rotation
+ * it updates the pivot and root node (height and balance factor)
+ */
+static CTreeNode*
+ctreenode_rotate_right(CTreeNode* node)
+{
+    CTreeNode* new_root = node->left;
+    node->left          = new_root->right;
+    new_root->right     = node;
+    ctreenode_update(node);
+    ctreenode_update(new_root);
+    return new_root;
+}
 
-        tree->size -= node->count;
-        ctreenode_free(node);
+/*
+ * Rotation function, performs left rotation, after rotation
+ * it updates the pivot and root node (height and balance factor)
+ */
+static CTreeNode*
+ctreenode_rotate_left(CTreeNode* node)
+{
+    CTreeNode* new_root = node->right;
+    node->right         = new_root->left;
+    new_root->left      = node;
+    ctreenode_update(node);
+    ctreenode_update(new_root);
+    return new_root;
+}
+
+/*
+ * Rotation function, performs multiple rotations by first rotating the right
+ * child of the root by applying the right rotation on it, then rotates the root
+ * and pivot (new right child) by applying left rotation
+ */
+static CTreeNode*
+ctreenode_rotate_right_left(CTreeNode* node)
+{
+    node->right = ctreenode_rotate_right(node->right);
+    return ctreenode_rotate_left(node);
+}
+
+/*
+ * Rotation function, performs multiple rotations by first rotating the left
+ * child of the root by applying the left rotation on it, then rotates the root
+ * and pivot (new left child) by applying right rotation
+ */
+static CTreeNode*
+ctreenode_rotate_left_right(CTreeNode* node)
+{
+    node->left = ctreenode_rotate_left(node->left);
+    return ctreenode_rotate_right(node);
+}
+
+/*
+ * Rebalancing function, initiates rotations only
+ * if the node balance factor is not part of the
+ * {-1, 0, 1} set.
+ */
+static CTreeNode*
+ctreenode_rebalance(CTreeNode* node)
+{
+    if(node->balance < -1) {
+        // AVL tree invariant must not be broken
+        assert(node->balance == -2);
+        return (node->left->balance <= 0) ? ctreenode_rotate_right(node)
+                                          : ctreenode_rotate_left_right(node);
+    } else if(node->balance > 1) {
+        // AVL tree invariant must not be broken
+        assert(node->balance == 2);
+        return (node->right->balance >= 0) ? ctreenode_rotate_left(node)
+                                           : ctreenode_rotate_right_left(node);
     }
+    return node;
 }
 
 /*
- * CTree recursive BST insertion function
- * Returns false if no insertion occured,
- * otherwise true.
+ * Finds the max key value in the left subtree
+ * of the passed in 'CTreeNode'
  */
-bool
-ctree_insert(CTree* tree, cptr key)
+static CTreeNode*
+ctreenode_find_right(CTreeNode* node)
 {
-    return_val_if_fail(tree != NULL, false);
+    while(node->left != NULL)
+        node = node->left;
 
-    tree->root = ctreenode_insert(tree, tree->root, key);
-
-    tree->flags->inserted = 0;
-
-    return true;
+    return node;
 }
 
 /*
- * Getter, returns the total node count in the CTree.
+ * Finds the min key value in the right subtree
+ * of the passed in 'CTreeNode'
  */
-cuint
-ctree_size(CTree* tree)
+static CTreeNode*
+ctreenode_find_left(CTreeNode* node)
 {
-    return tree->size;
-}
+    while(node->right != NULL)
+        node = node->right;
 
-/*
- * Getter, returns the total size of the CTree
- * (*size of all nodes) in bytes.
- */
-size_t
-ctree_size_bytes(CTree* tree)
-{
-    return tree->size * sizeof(CTreeNode);
+    return node;
 }
 
 /*
@@ -258,7 +351,7 @@ ctree_size_bytes(CTree* tree)
  * It updates the node parameters and does the
  * recursive tree rebalancing.
  */
-CTreeNode*
+static CTreeNode*
 ctreenode_insert(CTree* tree, CTreeNode* node, cptr key)
 {
     int cmp;
@@ -281,28 +374,6 @@ ctreenode_insert(CTree* tree, CTreeNode* node, cptr key)
     }
 
     return node;
-}
-
-/*
- * Removes the given key from the tree.
- * Returns true upon finding and 'removing' the key.
- * Also returns true if the value was found but only
- * the count was decreased instead of the node getting removed.
- * False if no key was found or (tree | key) is NULL.
- */
-bool
-ctree_remove(CTree* tree, cptr key)
-{
-    return_val_if_fail((tree != NULL && key != NULL), false);
-
-    tree->root = ctreenode_remove(tree, tree->root, key);
-
-    if(tree->flags->node_found | tree->flags->node_found) {
-        tree->flags->removed    = 0;
-        tree->flags->node_found = 0;
-        return true;
-    } else
-        return false;
 }
 
 /*
@@ -339,7 +410,7 @@ ctree_remove(CTree* tree, cptr key)
  * But the key in the original node that copied over the
  * other key will be freed (if free_key_fn was provided).
  */
-CTreeNode*
+static CTreeNode*
 ctreenode_remove(CTree* tree, CTreeNode* node, cptr key)
 {
     if(node == NULL)
@@ -412,161 +483,64 @@ ctreenode_remove(CTree* tree, CTreeNode* node, cptr key)
 }
 
 /*
- * Finds the max key value in the left subtree
- * of the passed in 'CTreeNode'
+ * CTree recursive BST insertion function
+ * Returns false if no insertion occured,
+ * otherwise true.
  */
-CTreeNode*
-ctreenode_find_right(CTreeNode* node)
+bool
+ctree_insert(CTree* tree, cptr key)
 {
-    while(node->left != NULL)
-        node = node->left;
+    return_val_if_fail(tree != NULL, false);
 
-    return node;
+    tree->root = ctreenode_insert(tree, tree->root, key);
+
+    tree->flags->inserted = 0;
+
+    return true;
 }
 
 /*
- * Finds the min key value in the right subtree
- * of the passed in 'CTreeNode'
+ * Removes the given key from the tree.
+ * Returns true upon finding and 'removing' the key.
+ * Also returns true if the value was found but only
+ * the count was decreased instead of the node getting removed.
+ * False if no key was found or (tree | key) is NULL.
  */
-CTreeNode*
-ctreenode_find_left(CTreeNode* node)
+bool
+ctree_remove(CTree* tree, cptr key)
 {
-    while(node->right != NULL)
-        node = node->right;
+    return_val_if_fail((tree != NULL && key != NULL), false);
 
-    return node;
+    tree->root = ctreenode_remove(tree, tree->root, key);
+
+    if(tree->flags->node_found | tree->flags->node_found) {
+        tree->flags->removed    = 0;
+        tree->flags->node_found = 0;
+        return true;
+    } else
+        return false;
 }
 
 /*
- * CTreeNode constructor
+ * Getter, returns the total node count in the CTree.
  */
-CTreeNode*
-ctreenode_new(cptr key)
+cuint
+ctree_size(CTree* tree)
 {
-    CTreeNode* node = memc_malloc(CTreeNode);
-    if(node != NULL) {
-        if((node->key = key) == NULL) {
-            free(node);
-            return NULL;
-        }
-        node->count   = 1;
-        node->height  = 0;
-        node->balance = 0;
-        node->right   = NULL;
-        node->left    = NULL;
-    }
-    return node;
+    return tree->size;
 }
 
 /*
- * CTreeNode destructor
+ * Getter, returns the total size of the CTree
+ * (*size of all nodes) in bytes.
  */
-void
-ctreenode_free(CTreeNode* node)
+size_t
+ctree_size_bytes(CTree* tree)
 {
-    node->height  = 0;
-    node->balance = 0;
-    node->count   = 0;
-    node->right   = NULL;
-    node->left    = NULL;
-    node->key     = NULL;
-    free(node);
-}
-
-/*
- * Updates the CTreeNode height and balance factor
- */
-void
-ctreenode_update(CTreeNode* node)
-{
-    int left      = (node->left != NULL) ? (int) node->left->height : -1;
-    int right     = (node->right != NULL) ? (int) node->right->height : -1;
-    node->height  = ((left > right) ? left : right) + 1;
-    node->balance = right - left;
-}
-
-/*
- * Rebalancing function, initiates rotations only
- * if the node balance factor is not part of the
- * {-1, 0, 1} set.
- */
-CTreeNode*
-ctreenode_rebalance(CTreeNode* node)
-{
-    if(node->balance < -1) {
-        // AVL tree invariant must not be broken
-        assert(node->balance == -2);
-        return (node->left->balance <= 0) ? ctreenode_rotate_right(node)
-                                          : ctreenode_rotate_left_right(node);
-    } else if(node->balance > 1) {
-        // AVL tree invariant must not be broken
-        assert(node->balance == 2);
-        return (node->right->balance >= 0) ? ctreenode_rotate_left(node)
-                                           : ctreenode_rotate_right_left(node);
-    }
-    return node;
-}
-
-/*
- * Rotation function, performs right rotation, after rotation
- * it updates the pivot and root node (height and balance factor)
- */
-CTreeNode*
-ctreenode_rotate_right(CTreeNode* node)
-{
-    CTreeNode* new_root = node->left;
-    node->left          = new_root->right;
-    new_root->right     = node;
-    ctreenode_update(node);
-    ctreenode_update(new_root);
-    return new_root;
-}
-
-/*
- * Rotation function, performs left rotation, after rotation
- * it updates the pivot and root node (height and balance factor)
- */
-CTreeNode*
-ctreenode_rotate_left(CTreeNode* node)
-{
-    CTreeNode* new_root = node->right;
-    node->right         = new_root->left;
-    new_root->left      = node;
-    ctreenode_update(node);
-    ctreenode_update(new_root);
-    return new_root;
-}
-
-/*
- * Rotation function, performs multiple rotations by first rotating the right
- * child of the root by applying the right rotation on it, then rotates the root
- * and pivot (new right child) by applying left rotation
- */
-CTreeNode*
-ctreenode_rotate_right_left(CTreeNode* node)
-{
-    node->right = ctreenode_rotate_right(node->right);
-    return ctreenode_rotate_left(node);
-}
-
-/*
- * Rotation function, performs multiple rotations by first rotating the left
- * child of the root by applying the left rotation on it, then rotates the root
- * and pivot (new left child) by applying right rotation
- */
-CTreeNode*
-ctreenode_rotate_left_right(CTreeNode* node)
-{
-    node->left = ctreenode_rotate_left(node->left);
-    return ctreenode_rotate_right(node);
+    return tree->size * sizeof(CTreeNode);
 }
 
 // Debug section--------------------------------------------------------------
-void
-print_tree(CTree* tree)
-{
-    print_node(tree->root);
-}
 
 void
 print_node(CTreeNode* node)
@@ -575,4 +549,10 @@ print_node(CTreeNode* node)
         print_node(node->left);
         print_node(node->right);
     }
+}
+
+void
+print_tree(CTree* tree)
+{
+    print_node(tree->root);
 }

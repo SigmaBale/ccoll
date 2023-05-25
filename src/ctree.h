@@ -1,14 +1,13 @@
-#ifndef __CTREE_H__
-#define __CTREE_H__
+#ifndef __COL_TREE_H__
+#define __COL_TREE_H__
 
-#if !defined(__COLLIB__INSIDE__) && !defined(__CTREE_SOURCE_FILE__) &&      \
-    !defined(__CTREE_TEST_FILE__)
+#if !defined(__COL_LIB_INSIDE__) && !defined(__COL_TREE_C_FILE__)
 #error "Only <collib.h> can be included directly."
 #endif
 
-#define __COL_HEADER_FILE__
+#define __COL_H_FILE__
 #include "core.h"
-#undef __COL_HEADER_FILE__
+#undef __COL_H_FILE__
 #include <stdbool.h>
 #include <stddef.h>
 

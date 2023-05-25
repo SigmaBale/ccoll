@@ -1,13 +1,13 @@
-#ifndef __CLIST_H__
-#define __CLIST_H__
+#ifndef __COL_LIST_H__
+#define __COL_LIST_H__
 
-#if !defined(__COLLIB_INSIDE__) && !defined(__CLIST_SOURCE_FILE__)
+#if !defined(__COL_LIB_INSIDE__) && !defined(__COL_LIST_C_FILE__)
 #error "Only <collib.h> can be included directly."
 #endif
 
-#define __COL_HEADER_FILE__
+#define __COL_H_FILE__
 #include "core.h"
-#undef __COL_HEADER_FILE__
+#undef __COL_H_FILE__
 #include <stdbool.h>
 
 /*

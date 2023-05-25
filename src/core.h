@@ -1,7 +1,7 @@
-#ifndef __CCORE_H__
-#define __CCORE_H__
+#ifndef __COL_CORE_H__
+#define __COL_CORE_H__
 
-#if !defined(__COL_HEADER_FILE__) && !defined(__COL_INSIDE__)
+#if !defined(__COL_H_FILE__) && !defined(__COL_LIB_INSIDE__)
 #error "Only <collib.h> can be included directly."
 #endif
 
