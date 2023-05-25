@@ -1,6 +1,6 @@
 #define _CTREE_TEST_FILE_
 
-#include "../include/avltree.h"
+#include "../include/ctree.h"
 #include "ctree_test.h"
 #include <assert.h>
 #include <stdio.h>

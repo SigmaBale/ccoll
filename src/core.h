@@ -1,5 +1,9 @@
-#ifndef CC_TYPES_H
-#define CC_TYPES_H
+#ifndef __CCORE_H__
+#define __CCORE_H__
+
+#if !defined(__COL_HEADER_FILE__) && !defined(__COL_INSIDE__)
+#error "Only <collib.h> can be included directly."
+#endif
 
 #define return_val_if_fail(expr, val)                                          \
   if (!(expr))                                                                 \
@@ -27,6 +31,6 @@ typedef int (*CCompareKeyFn)(cconstptr a_key, cconstptr b_key);
  * gets removed from the data structure you should
  * provide the CFreeKeyFree.
  */
-typedef void (*CFreeKeyFn)(cconstptr key);
+typedef void (*CFreeKeyFn)(cptr key);
 
 #endif

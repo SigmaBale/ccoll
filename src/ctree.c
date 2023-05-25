@@ -7,21 +7,15 @@
  * be rewritten with iterative approach.
  */
 
-// For ctree.h 
-#define _CTREE_SOURCE_FILE_
-// For core.h
-#define _SOURCE_FILE_
-
+#define __CTREE_SOURCE_FILE__
 #include "ctree.h"
-#include "core.h"
+#undef __CTREE_SOURCE_FILE__
+
 #include <memc.h>
-#include <stdio.h>
 // TODO: Debug macro for turning on/off
 // the assertions and debug functions
 #include <assert.h>
 #include <stdbool.h>
-#include <stdlib.h>
-#include <string.h>
 
 /*
  * Group of flags that are used for state checking inside
@@ -31,11 +25,11 @@
  * actually removing it form the tree, this way we can also
  * optimize when to update the tree.
  * This is mainly usefull if our tree allows duplicate key values
- * which by default it does.
+ * which it does by default.
  *
  * Flag 'inserted' gets set whenever new key gets inserted.
  * This way we can optimize when to update nodes and
- * rebalance the tree.
+ * rebalance the tree during recursion traceback.
  * If our tree allows duplicate key values then the flag will only be
  * set if the key inserted is unique.
  * If the key already exists then only the node count that holds that
@@ -43,12 +37,12 @@
  *
  * Flag 'node_copied' gets set whenever we are removing the key
  * from the tree and the node holding it happens to have both
- * subtrees and in case of tree that allows duplicate values (which
- * CTree does by default) where node count is 1 before removing.
+ * subtrees and additionally in case of tree that allows duplicate values
+ * (which CTree does by default) where node count is 1 before removing.
  * It gets set because we will copy over the key and node count (in
  * case of allowing duplicate key values) of the node either from
  * left subtree or right subtree, so the key value stored in the node
- * we just copied from doesn't get removed (if user specified
+ * we just copied from doesn't get removed (in case user specified
  * key_free_fn).
  */
 
@@ -72,22 +66,19 @@ typedef struct {
  * invariant is violated.
  *
  * If so then the tree rebalances itself until the balance factor
- * of all nodes is one of the keys of the given set {-1, 0, 1}
+ * of all nodes is one of the values of the given set {-1, 0, 1}
  */
 typedef struct CTreeNode {
     cptr              key;
-    cuint              count;
-    cuint              height;
+    cuint             count;
+    cuint             height;
     int               balance;
     struct CTreeNode* right;
     struct CTreeNode* left;
 } CTreeNode;
 
 /*
- * AVL tree (self-balancing binary search tree).
- * In case of AVL tree invariant violation, tree rebalancing is done
- * using left, right, left-right and right-left rotations.
- *
+ * CTree is AVL tree (self-balancing binary search tree).
  * Comparisons are done based on the comparison function provided upon
  * constructing the CTree ('CCompareKeyFn').
  *
@@ -102,7 +93,7 @@ typedef struct CTreeNode {
 struct _CTree {
     CTreeNode*    root;
     CFlags*       flags;
-    cuint          size;
+    cuint         size;
     CCompareKeyFn compare_key_fn;
     CFreeKeyFn    free_key_fn;
 };
@@ -138,7 +129,7 @@ void print_node(CTreeNode*);
 CFlags*
 flags_new(void)
 {
-    CFlags* flags = (CFlags*) malloc(sizeof(CFlags));
+    CFlags* flags = memc_malloc(CFlags);
     if(flags != NULL) {
         flags->removed     = 0;
         flags->inserted    = 0;
@@ -172,7 +163,7 @@ flags_free(CFlags* flags)
 CTree*
 ctree_new(CCompareKeyFn compare_key_fn, CFreeKeyFn free_key_fn)
 {
-    CTree* avltree = (CTree*) malloc(sizeof(CTree));
+    CTree* avltree = memc_malloc(CTree);
     if(avltree != NULL) {
         if((avltree->compare_key_fn = compare_key_fn) == NULL || (avltree->flags = flags_new()) == NULL) {
             free(avltree);
@@ -445,8 +436,6 @@ ctreenode_find_left(CTreeNode* node)
 
     return node;
 }
-
-#define mallocc(type) ((type*) malloc(sizeof(type)))
 
 /*
  * CTreeNode constructor

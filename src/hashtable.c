@@ -1,7 +1,8 @@
 /*
- * This is implementation of Hash Table (hash map).
+ * This is implementation of hash table.
  * Hash table is an abstract data type that maps
  * keys to values.
+ *
  * Main properties of hash table are O(1) lookup,
  * insert and delete time complexity.
  *
@@ -12,41 +13,12 @@
  *  2. Use that hashvalue to index into the array.
  *  3. Array will consist of pointers to association lists or
  *      dynamically sized data structure (to cope with collisions)
- *      which hold the value/s.
+ *      or array might only hold pointers that directly point
+ *      to the value if we chose to avoid collisions by open
+ *      adressing.
  *
- *  Note:
- *  Array (Hash Table) can hold pointers (or hold
- *  structures directly) to any arbitrary
- *  structure that might hold arbitrary number of
- *  members depending on the need, but generally
- *  it will mimic structure of association list.
- *  Association list holds a key, value and
- *  next element in the association list.
- *
- * So knowing the general idea of Hash table we can
- * deduce that having effiecient hash function would
- * lead to having the most performant time complexity.
- *
- * Lots of collisions usually result in a bad hashing
- * function implementation.
- * There are plenty of good hashing functions available
- * in many popular open source projects, of course
- * copy pasting the hash function and shipping it
- * is not generally a great idea.
- * We still want this to be as generic as possible.
- * Also hash function performance might perform
- * differently on certain kinds of inputs.
- *
- * For this reason when constructing the HashTable
- * we will give the user of this library obligation
- * to provide his own hash function and comparison function
- * for comparing values inside the association list.
- *
- * This implementation of hash function is subject to
- * change, main goal of this source file is to start
- * with a basic implementation that is reliable and works.
- * Then expand on it implementing generic behaviour,
- * better hashing methods/optimizations, and so on.
+ * There is lot of nuance and possible optimizations and choices to
+ * be made when creating a hash table from scratch.
+ * This 'HashTable' will use open adressing using 'Robin Hood hashing' method.
+ * It will use 'SipHash 2-4' that is hash flooding resistant (HashDoS).
  */
-
-struct HashTable { };
