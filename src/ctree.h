@@ -28,6 +28,14 @@ typedef struct _CTree CTree;
 CTree *ctree_new(CCompareKeyFn, CFreeKeyFn);
 
 /*
+ * Free's up the tree and additionally all
+ * values inside of it only and only if the user
+ * provided 'CFreeKeyFn' when he created
+ * the tree using 'ctree_new'.
+ */
+void ctree_free(CTree *);
+
+/*
  * Inserts the 'cptr' (key) into the 'CTree'.
  * ('CTree' accepts duplicate key values)
  * If the value is inserted it returns true,
