@@ -1,13 +1,28 @@
-TEST_DIRS := $(wildcard */.)
+# Here should only be 2 dirs
+# Integration directory for integration tests
+# and unit dirctory for unit tests
+INTEGRATION = integration
+UNIT = unit
 
-all: $(TEST_DIRS)
-	$(eval TEST_EXECUTABLES := $(foreach Dir,$(TEST_DIRS),$(wildcard $(Dir)/*_test)))
-	$(foreach test,$(TEST_EXECUTABLES),./$(test))
+all: $(INTEGRATION) $(UNIT)
+	@$(MAKE) -C $(INTEGRATION)
+	@$(MAKE) -C $(UNIT)
 
-$(TEST_DIRS):
-	$(MAKE) -C $@
+$(UNIT) $(INTEGRATION):
+	@$(MAKE) -C $@
 
-clean:
-	$(foreach dir,$(TEST_DIRS),$(MAKE) -C $(dir) clean)
+clean: clean-unit clean-integration
 
-.PHONY: all $(TEST_DIRS) clean
+clean-unit:
+	@$(MAKE) -C $(UNIT) clean
+
+clean-integration:
+	@$(MAKE) -C $(INTEGRATION) clean
+
+test unit-test:
+	@$(MAKE) -C $(UNIT) test
+
+integration-test:
+	@$(MAKE) -C $(INTEGRATION) test
+
+.PHONY: all clean clean-unit clean-integration unit-test integration-test test
