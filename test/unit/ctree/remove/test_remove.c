@@ -1,5 +1,5 @@
 #define __COL_TREE_C_FILE__
-#include "../../../src/ctree.h"
+#include "../../../../src/ctree.h"
 #undef __COL_TREE_C_FILE__
 #define __COL_TREE_T_FILE__
 #include "../../include/test.h"
@@ -31,58 +31,72 @@ ctree_test_remove_nodup(void)
     assert(tree != NULL);
 
     char* name = (char*) malloc(sizeof("Mark"));
+    strcpy(name, "Mark");
     ctree_insert(tree, name);
     assert(ctree_size(tree) == 1);
 
     name = (char*) malloc(sizeof("Tom"));
+    strcpy(name, "Tom");
     ctree_insert(tree, name);
     assert(ctree_size(tree) == 2);
 
     name = (char*) malloc(sizeof("Vader"));
+    strcpy(name, "Vader");
     ctree_insert(tree, name);
     assert(ctree_size(tree) == 3);
 
     name = (char*) malloc(sizeof("Platinum"));
+    strcpy(name, "Platinum");
     ctree_insert(tree, name);
     assert(ctree_size(tree) == 4);
 
     name = (char*) malloc(sizeof("Diavolo"));
+    strcpy(name, "Diavolo");
     ctree_insert(tree, name);
     assert(ctree_size(tree) == 5);
 
     name = (char*) malloc(sizeof("Giorno"));
+    strcpy(name, "Giorno");
     ctree_insert(tree, name);
     assert(ctree_size(tree) == 6);
 
     name = (char*) malloc(sizeof("Dio"));
+    strcpy(name, "Dio");
     ctree_insert(tree, name);
     assert(ctree_size(tree) == 7);
 
     name = (char*) malloc(sizeof("Vader"));
+    strcpy(name, "Vader");
     ctree_remove(tree, name);
     assert(ctree_size(tree) == 6);
 
     name = (char*) malloc(sizeof("Dio"));
+    strcpy(name, "Dio");
     ctree_remove(tree, name);
     assert(ctree_size(tree) == 5);
 
     name = (char*) malloc(sizeof("Mark"));
+    strcpy(name, "Mark");
     ctree_remove(tree, name);
     assert(ctree_size(tree) == 4);
 
     name = (char*) malloc(sizeof("Diavolo"));
+    strcpy(name, "Diavolo");
     ctree_remove(tree, name);
     assert(ctree_size(tree) == 3);
 
     name = (char*) malloc(sizeof("Giorno"));
+    strcpy(name, "Giorno");
     ctree_remove(tree, name);
     assert(ctree_size(tree) == 2);
 
     name = (char*) malloc(sizeof("Platinum"));
+    strcpy(name, "Platinum");
     ctree_remove(tree, name);
     assert(ctree_size(tree) == 1);
 
     name = (char*) malloc(sizeof("Tom"));
+    strcpy(name, "Tom");
     ctree_remove(tree, name);
     assert(ctree_size(tree) == 0);
 
@@ -97,38 +111,47 @@ ctree_test_remove_dup(void)
     assert(tree != NULL);
 
     char* name = (char*) malloc(sizeof("Mark"));
+    strcpy(name, "Mark");
     ctree_insert(tree, name);
     assert(ctree_size(tree) == 1);
 
     name = (char*) malloc(sizeof("Mark"));
+    strcpy(name, "Mark");
     ctree_insert(tree, name);
     assert(ctree_size(tree) == 2);
 
     name = (char*) malloc(sizeof("Platinum"));
+    strcpy(name, "Platinum");
     ctree_insert(tree, name);
     assert(ctree_size(tree) == 3);
 
     name = (char*) malloc(sizeof("Platinum"));
+    strcpy(name, "Platinum");
     ctree_insert(tree, name);
     assert(ctree_size(tree) == 4);
 
     name = (char*) malloc(sizeof("Diavolo"));
+    strcpy(name, "Diavolo");
     ctree_insert(tree, name);
     assert(ctree_size(tree) == 5);
 
     name = (char*) malloc(sizeof("Giorno"));
+    strcpy(name, "Giorno");
     ctree_insert(tree, name);
     assert(ctree_size(tree) == 6);
 
     name = (char*) malloc(sizeof("Diavolo"));
+    strcpy(name, "Diavolo");
     ctree_insert(tree, name);
     assert(ctree_size(tree) == 7);
 
     name = (char*) malloc(sizeof("Mark"));
+    strcpy(name, "Mark");
     ctree_insert(tree, name);
     assert(ctree_size(tree) == 8);
 
     name = (char*) malloc(sizeof("Dio"));
+    strcpy(name, "Dio");
     ctree_insert(tree, name);
     assert(ctree_size(tree) == 9);
 
@@ -149,30 +172,37 @@ ctree_test_remove_dup(void)
     assert(ctree_size(tree) == 7);
 
     name = (char*) malloc(sizeof("Diavolo"));
+    strcpy(name, "Diavolo");
     ctree_remove(tree, name);
     assert(ctree_size(tree) == 6);
 
     name = (char*) malloc(sizeof("Diavolo"));
+    strcpy(name, "Diavolo");
     ctree_remove(tree, name);
     assert(ctree_size(tree) == 5);
 
     name = (char*) malloc(sizeof("Platinumk"));
+    strcpy(name, "Platinum");
     ctree_remove(tree, name);
     assert(ctree_size(tree) == 4);
 
     name = (char*) malloc(sizeof("Mark"));
+    strcpy(name, "Mark");
     ctree_remove(tree, name);
     assert(ctree_size(tree) == 3);
 
     name = (char*) malloc(sizeof("Platinum"));
+    strcpy(name, "Platinum");
     ctree_remove(tree, name);
     assert(ctree_size(tree) == 2);
 
     name = (char*) malloc(sizeof("Giorno"));
+    strcpy(name, "Giorno");
     ctree_remove(tree, name);
     assert(ctree_size(tree) == 1);
 
     name = (char*) malloc(sizeof("Diavolo"));
+    strcpy(name, "Diavolo");
     ctree_remove(tree, name);
     assert(ctree_size(tree) == 0);
 

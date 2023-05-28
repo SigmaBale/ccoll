@@ -7,6 +7,7 @@
  * be rewritten with iterative approach.
  */
 
+// TODO: allow only unique values
 #define __COL_TREE_C_FILE__
 #include "ctree.h"
 #undef __COL_TREE_C_FILE__
