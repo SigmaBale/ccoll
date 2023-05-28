@@ -15,69 +15,81 @@ typedef struct _CTree CTree;
 
 /*
  * 'CTree' constructor.
+ *
  * Returns pointer to the 'CTree'.
  * Requires 'CCompareKeyFn', a comparison function
  * for sorting the keys (fn pointer).
+ *
  * Optional argument 'CFreeKeyFn', a function pointer
  * if provided will run each time we remove key
  * from the 'CTree' with the removed key as its
  * argument.
- * If NULL *USER* is required to free the memory
+ * If it is NULL *USER* is required to free the memory
  * not the CTree.
+ *
+ * 'CFreeValueFn' is the same concept as free key fn,
+ * if user provides it then all the values will be
+ * freed either when the value gets updated or key removed
+ * together with the value.
+ * If it is NULL then the user must free the memory.
  */
-CTree *ctree_new(CCompareKeyFn, CFreeKeyFn);
+CTree *ctree_new(CCompareKeyFn, CFreeKeyFn, CFreeValueFn);
 
 /*
  * Free's up the tree and additionally all
- * values inside of it only and only if the user
- * provided 'CFreeKeyFn' when he created
+ * key value pairs inside of it only and only if the user
+ * provided 'CFreeKeyFn' and 'CFreeValueFn' when he created
  * the tree using 'ctree_new'.
+ *
+ * If 'CFreeKeyFn' wasn't provided key won't be freed.
+ * If 'CFreeValueFn' wasn't provided value won't be freed.
+ *
+ * Either way the tree will get freed.
  */
-void ctree_free(CTree *);
+void ctree_free(CTree *tree);
 
 /*
- * Inserts the 'cptr' (key) into the 'CTree'.
- * ('CTree' accepts duplicate key values)
- * If the value is inserted it returns true,
- * otherwise false. If the 'CTree' or 'cptr'
- * are NULL then it also returns false.
+ * Inserts key-value pair in the tree.
+ *
+ * Returns false if the tree is NULL or
+ * key is NULL, additionally returns false
+ * if the key already existed in the tree
+ * and only its value got updated.
+ *
+ * Returns true if the key was inserted.
  */
-bool ctree_insert(CTree *, cptr);
+bool ctree_insert(CTree *tree, cptr key, cptr value);
 
 /*
  * Removes the 'cptr' from the 'CTree'.
  * Returns true if key was removed.
  * Returns false if key was not found.
+ *
+ * Key and/or value get freed if their
+ * free functions were provided upong
+ * creation of the tree.
+ *
+ * Otherwise user is required to free
+ * the key and/or value.
  */
-bool ctree_remove(CTree *, cptr);
+bool ctree_remove(CTree *tree, cptr key);
 
 /*
  * Returns current size of the tree.
- * This would represent the difference between
- * (amount of inserts - amount of valid removals)
- * from the tree.
- * This counts duplicate key values that were
- * inserted, for a concrete size use 'ctree_size_concrete'.
+ * Size being total amount of keys.
  */
-cuint ctree_size(CTree *);
+cuint ctree_size(CTree *tree);
 
 /*
- * Returns concrete size of the tree.
- * Does not count the nodes storing the same
- * key value, because they are not directly stored
- * as duplicates in memory.
- * You can say it returns amount of nodes inside
- * the 'CTree' that are allocated in memory.
+ * Returns size of the tree in bytes.
+ * Size being total amount of keys * size of node.
  */
-cuint ctree_size_concrete(CTree *);
+size_t ctree_size_bytes(CTree *tree);
 
 /*
- * Experimental:
- * Returns size of the CTree in bytes representing
- * total amount of nodes stored inside the CTree.
- * Nodes storing the same key value are not
- * literally stored as duplicates so they don't count.
+ * Returns pointer to the value of the given key.
+ * Returns NULL if key is not inside the tree.
  */
-size_t ctree_size_bytes(CTree *);
+cptr ctree_entry(CTree *tree, cptr key);
 
 #endif

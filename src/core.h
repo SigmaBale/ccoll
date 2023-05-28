@@ -33,4 +33,6 @@ typedef int (*CCompareKeyFn)(cconstptr a_key, cconstptr b_key);
  */
 typedef void (*CFreeKeyFn)(cptr key);
 
+typedef void (*CFreeValueFn)(cptr value);
+
 #endif
