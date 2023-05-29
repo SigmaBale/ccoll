@@ -704,7 +704,7 @@ cursor_splice_before(CListCursor* cursor, Clist** other_list)
             cursor->clist->tail->next = other_head;
             cursor->clist->tail       = other_tail;
         } else {
-            memc_memswap(cursor->clist, *other_list);
+            memc_swap(cursor->clist, *other_list);
             swapped = 1;
         }
 
@@ -777,7 +777,7 @@ cursor_splice_after(CListCursor* cursor, Clist** other_list)
             cursor->clist->head->prev = other_tail;
             cursor->clist->head       = other_head;
         } else {
-            memc_memswap(cursor->clist, *other_list);
+            memc_swap(cursor->clist, *other_list);
             swapped = 1;
         }
 

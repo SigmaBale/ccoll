@@ -17,20 +17,20 @@ CFLAGS := -Wall -Werror -Wextra $(OPT_BUILD) $(INCLUDES) $(DEPFLAGS)
 all: $(LIB)
 
 $(LIB): $(OBJ_FILES)
-	$(CC) -shared -o $@ $^
+	@$(CC) -shared -o $@ $^
 
 $(OBJ_DIR)/%.o:$(SRC_DIR)/%.c
-	$(CC) $(CFLAGS) -c -fPIC $< -o $@ 
+	@$(CC) $(CFLAGS) -c -fPIC $< -o $@ 
 
 clean:
 	rm -rf $(LIB) $(OBJ_FILES) $(DEP_FILES)
-	$(MAKE) -C $(TEST_DIR) clean
+	@$(MAKE) -C $(TEST_DIR) clean
 
 unit-test test: $(LIB)
-	$(MAKE) -C $(TEST_DIR) test
+	@$(MAKE) -C $(TEST_DIR) test
 
 integration-test: $(LIB)
-	$(MAKE) -C $(TEST_DIR) integration-test
+	@$(MAKE) -C $(TEST_DIR) integration-test
 
 -include $(DEP_FILES)
 

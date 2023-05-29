@@ -1,13 +1,12 @@
 # ccol
 ## Dependencies
-[memc](https://github.com/SigmaBale/Memory)
+[memc](https://github.com/SigmaBale/Memory) - very lightweight library
 
 ## About
-ccol is a collection of the most basic data structures you would find
+ccol is a collection of the basic data structures you would find
 in any modern high level language.
 
-For now ccol contains implementation of self balanced binary tree (AVLTree),
-Linked List (doubly linked list the only one that matters), HashTable.
+For now ccol contains implementation of Binary Tree (AVLTree),
+Linked List (doubly linked list) and Vec (dynamically sized array).
 
-Future additions to the library would be dynamically sized array aka vector,
-HashSet.
+Future additions to the library would be Hash Map and Hash Set.

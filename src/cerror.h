@@ -16,6 +16,11 @@
     fprintf(stderr, "%s: invalid key -> '%p' (pointer)\n", module, key)
 #endif
 
+#ifndef COL_ERROR_INVALID_VALUE
+#define COL_ERROR_INVALID_VALUE(module, value) \
+    fprintf(stderr, "%s: invalid value -> '%p' (pointer)\n", module, value)
+#endif
+
 #ifndef COL_ERROR_INVALID_COMPARISON_FUNCTION
 #define COL_ERROR_INVALID_COMPARISON_FUNCTION(module) \
     fprintf(stderr, "%s: comparison fn is NULL\n", module)

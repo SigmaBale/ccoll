@@ -587,7 +587,7 @@ ctree_remove(CTree* tree, cptr key)
  * to the key if it was found.
  */
 cptr
-ctreenode_find(CTree* tree, CTreeNode* root, cptr key)
+ctreenode_find(CTree* tree, cptr key)
 {
     return_val_if_fail(tree != NULL, NULL);
 
@@ -617,7 +617,7 @@ ctree_entry(CTree* tree, cptr key)
 
     CTreeNode* entry = NULL;
 
-    if((entry = ctreenode_find(tree, tree->root, key)) != NULL)
+    if((entry = ctreenode_find(tree, key)) != NULL)
         return entry->value;
 
     return entry;

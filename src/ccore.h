@@ -9,6 +9,8 @@
   if (!(expr))                                                                 \
   return (val)
 
+typedef unsigned char* bptr;
+
 typedef unsigned int cuint;
 
 typedef const void *cconstptr;

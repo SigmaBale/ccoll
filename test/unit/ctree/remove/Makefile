@@ -5,8 +5,8 @@ DEPFLAGS = -MP -MD
 INCLUDES = ../../include ../../../../src/
 FLAGS = -Wall -Wextra -g $(foreach dir,$(INCLUDES),-I$(dir)) $(OPTIM) $(DEPFLAGS)
 
-BIN = insert_test
-CFILES = test_remove.c ctree.c
+BIN =
+CFILES =
 OBJFILES = $(patsubst %.c,%.o,$(CFILES))
 DEPFILES = $(patsubst %.c,%.d,$(CFILES))
 
@@ -22,7 +22,6 @@ clean:
 	@rm -rf $(BIN) $(OBJFILES) $(DEPFILES)
 
 test: $(BIN)
-	@./$(BIN);
 
 -include $(DEPFILES)
 
