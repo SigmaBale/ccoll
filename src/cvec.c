@@ -17,14 +17,7 @@ struct _CVec {
     size_t len;
 };
 
-CVec* cvec_new(size_t t_size);
-CVec* cvec_from(cptr src, size_t len);
-uint  cvec_push(CVec* vec, cptr value);
-uint  cvec_expand(CVec* vec, size_t len);
-cptr  cvec_get(CVec* vec, uint idx);
-cptr  cvec_index(CVec* vec, uint idx);
-cptr  cvec_pop(CVec* vec);
-void  cvec_free(CVec* vec);
+cptr cvec_index(CVec* vec, cuint idx);
 
 CVec*
 cvec_new(size_t t_size)
@@ -54,7 +47,7 @@ cvec_free(CVec* vec)
     }
 }
 
-uint
+cuint
 cvec_expand(CVec* vec, size_t len)
 {
     bptr new = (bptr) realloc(vec->allocation, len);
@@ -113,7 +106,7 @@ cvec_from(cptr array, size_t len)
     return vec;
 }
 
-uint
+cuint
 cvec_push(CVec* vec, cptr value)
 {
     // TODO: introduce proper error checking
@@ -141,7 +134,7 @@ cvec_push(CVec* vec, cptr value)
  * a public function in the header.
  */
 cptr
-cvec_get(CVec* vec, uint idx)
+cvec_get(CVec* vec, cuint idx)
 {
     return cvec_index(vec, idx);
 }
@@ -151,7 +144,7 @@ cvec_get(CVec* vec, uint idx)
  * from given index.
  */
 cptr
-cvec_index(CVec* vec, uint idx)
+cvec_index(CVec* vec, cuint idx)
 {
     return_val_if_fail(vec != NULL && idx < vec->len, NULL);
 
@@ -171,4 +164,19 @@ cvec_pop(CVec* vec)
     vec->len--;
 
     return value;
+}
+
+int
+cvec_len(CVec* vec)
+{
+    return_val_if_fail(vec != NULL, -1);
+    return vec->len;
+}
+
+/* Debug */
+int
+cvec_capacity(CVec* vec)
+{
+    return_val_if_fail(vec != NULL, -1);
+    return vec->capacity;
 }
