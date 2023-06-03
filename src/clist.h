@@ -6,7 +6,7 @@
 #endif
 
 #define __COL_H_FILE__
-#include "core.h"
+#include "ccore.h"
 #undef __COL_H_FILE__
 #include <stdbool.h>
 

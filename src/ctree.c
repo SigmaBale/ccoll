@@ -6,34 +6,19 @@
  * However, it is possible that the implementation might
  * be rewritten with iterative approach.
  *
- * Currently it is not thread-safe, the flags should
- * implement atomic operations or even better having
- * a single flag to act as a lock to block other threads
- * from acessing the internals of the tree (calling functions on it).
- * Having the tree thread safe can increase performance in operations that
- * do not affect tree balance.
- * If the function to be executed is or could affect tree balance,
- * then additional flag should be set blocking other threads from
- * executing any other functions defined for the ctree or any functions
- * that depends on the internal state of the tree until the balance
- * affecting function returns.
- *
+ * About thread safety...
  * Having mix and match of which functions are thread safe and which
  * ones are not would be the ideal solution.
- * Proposal would be functions that do not affect the tree balance
- * and height should implement atomic functions if any flags are
- * to be set inside that function, additionally functions that
- * would mutate any key/value pair also can't be thread safe.
- * Because imagine what would happen if multiple threads are
- * replacing the same key or modifying the same value.
- * And we won't just wrap the key/value in some kind of a Mutex,
- * that should be the users choice not a duty of a simple data structure.
- *
- * Conclusion: only read operations can be thread safe or
+ * Only read operations can be thread safe or
  * operations that increment/decrement a simple counter
  * or set/unset a flag using atomic increment/decrement.
  * These operations should be the only ones that can be safely
  * called from any thread.
+ *
+ * Operations that affect tree balance won't benefit from
+ * the multithreading anyways, if the balance changes when
+ * insertion '1' is done inserting then the conccurent insertion '2'
+ * must start all the way from the root because tree might rebalance.
  */
 
 #define __COL_TREE_C_FILE__
@@ -46,8 +31,6 @@
 #include <assert.h>
 #include <memc.h>
 #include <stdbool.h>
-
-#define MAX_TREE_HEIGHT 40
 
 /*
  * Group of flags that are used for state checking inside
@@ -77,7 +60,7 @@ typedef struct {
     cuint removed  : 1;
     cuint inserted : 1;
     cuint replaced : 1;
-} CFlags;
+} cflags;
 
 /*
  * Core private structure that represents the Node (key)
@@ -93,15 +76,15 @@ typedef struct {
  * If so then the tree rebalances itself until the balance factor
  * of all nodes is one of the values of the given set {-1, 0, 1}
  */
-typedef struct CTreeNode {
+typedef struct _cnode {
     cptr  key;
     cptr  value;
     cuint height;
     int   balance;
 
-    struct CTreeNode* right;
-    struct CTreeNode* left;
-} CTreeNode;
+    struct _cnode* right;
+    struct _cnode* left;
+} cnode;
 
 /*
  * CTree is AVL tree (self-balancing binary search tree).
@@ -121,10 +104,10 @@ typedef struct CTreeNode {
  * replaced or key gets removed, the value won't be freed unless
  * user provided 'CFreeValueFn'.
  */
-struct _CTree {
-    CTreeNode* root;
-    CFlags*    flags;
-    cuint      size;
+struct _ctree {
+    cnode*  root;
+    cflags* flags;
+    cuint   size;
 
     CCompareKeyFn compare_key_fn;
     CFreeKeyFn    free_key_fn;
@@ -134,10 +117,10 @@ struct _CTree {
 /*
  * Flags constructor
  */
-static CFlags*
+static cflags*
 flags_new(void)
 {
-    CFlags* flags = memc_malloc(CFlags);
+    cflags* flags = memc_malloc(cflags);
     if(flags != NULL) {
         flags->removed  = 0;
         flags->inserted = 0;
@@ -150,7 +133,7 @@ flags_new(void)
  * Flags destructor
  */
 static void
-flags_free(CFlags* flags)
+flags_free(cflags* flags)
 {
     flags->inserted = 0;
     flags->removed  = 0;
@@ -166,44 +149,44 @@ flags_free(CFlags* flags)
  * in the implementation of free_key_fn, if it is NULL then the
  * user is responsible for freeing the key memory.
  */
-CTree*
+ctree*
 ctree_new(CCompareKeyFn compare_key_fn,
           CFreeKeyFn    free_key_fn,
           CFreeValueFn  free_value_fn)
 {
-    CTree* ctree = memc_malloc(CTree);
-    if(ctree != NULL) {
-        if((ctree->compare_key_fn = compare_key_fn) == NULL
-           || (ctree->flags = flags_new()) == NULL)
+    ctree* tree = memc_malloc(ctree);
+    if(tree != NULL) {
+        if((tree->compare_key_fn = compare_key_fn) == NULL
+           || (tree->flags = flags_new()) == NULL)
         {
-            if(ctree->compare_key_fn == NULL) {
+            if(tree->compare_key_fn == NULL) {
                 COL_ERROR_INVALID_COMPARISON_FUNCTION("ctree");
-                free(ctree);
+                free(tree);
             } else
                 COL_ERROR_OUT_OF_MEMORY("ctree");
 
             return NULL;
         }
-        ctree->free_key_fn   = free_key_fn;
-        ctree->free_value_fn = free_value_fn;
-        ctree->root          = NULL;
-        ctree->size          = 0;
+        tree->free_key_fn   = free_key_fn;
+        tree->free_value_fn = free_value_fn;
+        tree->root          = NULL;
+        tree->size          = 0;
     }
 
-    if(ctree == NULL)
+    if(tree == NULL)
         COL_ERROR_OUT_OF_MEMORY("ctree");
 
-    return ctree;
+    return tree;
 }
 
 /*
  * CTreeNode constructor
  */
-static CTreeNode*
+static cnode*
 ctreenode_new(cptr key, cptr value)
 {
-    CTreeNode* node;
-    if((node = memc_malloc(CTreeNode)) == NULL || (node->key = key) == NULL) {
+    cnode* node;
+    if((node = memc_malloc(cnode)) == NULL || (node->key = key) == NULL) {
         if(node == NULL) {
             COL_ERROR_OUT_OF_MEMORY("ctree");
         } else {
@@ -225,7 +208,7 @@ ctreenode_new(cptr key, cptr value)
  * CTreeNode destructor
  */
 static void
-ctreenode_free(CTreeNode* node)
+ctreenode_free(cnode* node)
 {
     node->height  = 0;
     node->balance = 0;
@@ -241,7 +224,7 @@ ctreenode_free(CTreeNode* node)
  * Recursively frees all the nodes
  */
 static void
-ctreenode_freeall(CTree* tree, CTreeNode* node)
+ctreenode_freeall(ctree* tree, cnode* node)
 {
     if(node != NULL) {
         ctreenode_freeall(tree, node->left);
@@ -267,7 +250,7 @@ ctreenode_freeall(CTree* tree, CTreeNode* node)
  * inserted keys.
  * */
 void
-ctree_free(CTree* tree)
+ctree_free(ctree* tree)
 {
     assert(tree != NULL);
     if(tree != NULL) {
@@ -285,7 +268,7 @@ ctree_free(CTree* tree)
  * Updates the CTreeNode height and balance factor
  */
 static void
-ctreenode_update(CTreeNode* node)
+ctreenode_update(cnode* node)
 {
     int left      = (node->left != NULL) ? (int) node->left->height : -1;
     int right     = (node->right != NULL) ? (int) node->right->height : -1;
@@ -297,12 +280,12 @@ ctreenode_update(CTreeNode* node)
  * Rotation function, performs right rotation, after rotation
  * it updates the pivot and root node (height and balance factor)
  */
-static CTreeNode*
-ctreenode_rotate_right(CTreeNode* node)
+static cnode*
+ctreenode_rotate_right(cnode* node)
 {
-    CTreeNode* new_root = node->left;
-    node->left          = new_root->right;
-    new_root->right     = node;
+    cnode* new_root = node->left;
+    node->left      = new_root->right;
+    new_root->right = node;
     ctreenode_update(node);
     ctreenode_update(new_root);
     return new_root;
@@ -312,12 +295,12 @@ ctreenode_rotate_right(CTreeNode* node)
  * Rotation function, performs left rotation, after rotation
  * it updates the pivot and root node (height and balance factor)
  */
-static CTreeNode*
-ctreenode_rotate_left(CTreeNode* node)
+static cnode*
+ctreenode_rotate_left(cnode* node)
 {
-    CTreeNode* new_root = node->right;
-    node->right         = new_root->left;
-    new_root->left      = node;
+    cnode* new_root = node->right;
+    node->right     = new_root->left;
+    new_root->left  = node;
     ctreenode_update(node);
     ctreenode_update(new_root);
     return new_root;
@@ -328,8 +311,8 @@ ctreenode_rotate_left(CTreeNode* node)
  * child of the root by applying the right rotation on it, then rotates the root
  * and pivot (new right child) by applying left rotation
  */
-static CTreeNode*
-ctreenode_rotate_right_left(CTreeNode* node)
+static cnode*
+ctreenode_rotate_right_left(cnode* node)
 {
     node->right = ctreenode_rotate_right(node->right);
     return ctreenode_rotate_left(node);
@@ -340,8 +323,8 @@ ctreenode_rotate_right_left(CTreeNode* node)
  * child of the root by applying the left rotation on it, then rotates the root
  * and pivot (new left child) by applying right rotation
  */
-static CTreeNode*
-ctreenode_rotate_left_right(CTreeNode* node)
+static cnode*
+ctreenode_rotate_left_right(cnode* node)
 {
     node->left = ctreenode_rotate_left(node->left);
     return ctreenode_rotate_right(node);
@@ -352,8 +335,8 @@ ctreenode_rotate_left_right(CTreeNode* node)
  * if the node balance factor is not part of the
  * {-1, 0, 1} set.
  */
-static CTreeNode*
-ctreenode_rebalance(CTreeNode* node)
+static cnode*
+ctreenode_rebalance(cnode* node)
 {
     if(node->balance < -1) {
         // AVL tree invariant must not be broken
@@ -373,8 +356,8 @@ ctreenode_rebalance(CTreeNode* node)
  * Finds the max key value in the left subtree
  * of the passed in 'CTreeNode'
  */
-static CTreeNode*
-ctreenode_find_right(CTreeNode* node)
+static cnode*
+ctreenode_find_right(cnode* node)
 {
     while(node->left != NULL)
         node = node->left;
@@ -386,8 +369,8 @@ ctreenode_find_right(CTreeNode* node)
  * Finds the min key value in the right subtree
  * of the passed in 'CTreeNode'
  */
-static CTreeNode*
-ctreenode_find_left(CTreeNode* node)
+static cnode*
+ctreenode_find_left(cnode* node)
 {
     while(node->right != NULL)
         node = node->right;
@@ -400,8 +383,8 @@ ctreenode_find_left(CTreeNode* node)
  * It updates the node parameters and does the
  * recursive tree rebalancing.
  */
-static CTreeNode*
-ctreenode_insert(CTree* tree, CTreeNode* node, cptr key, cptr value, bool replace)
+static cnode*
+ctreenode_insert(ctree* tree, cnode* node, cptr key, cptr value, bool replace)
 {
     int cmp;
     if(node == NULL && (node = ctreenode_new(key, value)) != NULL) {
@@ -444,8 +427,8 @@ ctreenode_insert(CTree* tree, CTreeNode* node, cptr key, cptr value, bool replac
  * If either one or both of the functions are not present,
  * then the user is responsible for freeing the value and/or key.
  */
-static CTreeNode*
-ctreenode_remove(CTree* tree, CTreeNode* node, cptr key)
+static cnode*
+ctreenode_remove(ctree* tree, cnode* node, cptr key)
 {
     if(node == NULL)
         return node;
@@ -457,21 +440,22 @@ ctreenode_remove(CTree* tree, CTreeNode* node, cptr key)
     } else if(cmp < 0) {
         node->right = ctreenode_remove(tree, node->right, key);
     } else if(cmp == 0) {
-        CTreeNode* temp;
+        cnode* temp;
 
         if(node->right == NULL || node->left == NULL) {
             temp = (node->right != NULL) ? node->right : node->left;
 
-            if(tree->free_key_fn)
-                tree->free_key_fn(node->key);
-
-            if(tree->free_value_fn)
-                tree->free_value_fn(node->value);
+            // If we freed the value in some recursion call
+            // before this one, then don't try to free again!
+            if(!tree->flags->removed) {
+                (tree->free_key_fn) ? tree->free_key_fn(node->key) : 0;
+                (tree->free_value_fn) ? tree->free_value_fn(node->value) : 0;
+                tree->flags->removed = 1;
+            }
 
             ctreenode_free(node);
 
             tree->size--;
-            tree->flags->removed = 1;
 
             if(temp == NULL)
                 return NULL;
@@ -479,25 +463,28 @@ ctreenode_remove(CTree* tree, CTreeNode* node, cptr key)
                 return temp;
 
         } else {
-            CTreeNode* start;
-
-            if(node->left->height > node->right->height) {
-                temp  = ctreenode_find_left(node->left);
-                start = node->left;
-            } else {
-                temp  = ctreenode_find_right(node->right);
-                start = node->right;
-            }
-
             if(tree->free_key_fn)
                 tree->free_key_fn(node->key);
 
             if(tree->free_value_fn)
                 tree->free_value_fn(node->value);
 
-            node->key   = temp->key;
-            node->value = temp->value;
-            node->right = ctreenode_remove(tree, start, node->key);
+            // Set the flag so we can check in the upper case
+            // if the flag is set, so we don't free the value
+            // that will get assigned to this current node
+            tree->flags->removed = 1;
+
+            if(node->left->height > node->right->height) {
+                temp        = ctreenode_find_left(node->left);
+                node->key   = temp->key;
+                node->value = temp->value;
+                node->left  = ctreenode_remove(tree, node->left, node->key);
+            } else {
+                temp        = ctreenode_find_right(node->right);
+                node->key   = temp->key;
+                node->value = temp->value;
+                node->right = ctreenode_remove(tree, node->right, node->key);
+            }
         }
     }
 
@@ -521,7 +508,7 @@ ctreenode_remove(CTree* tree, CTreeNode* node, cptr key)
  * If the key was not found then the key is inserted
  */
 bool
-ctree_insert(CTree* tree, cptr key, cptr value)
+ctree_insert(ctree* tree, cptr key, cptr value)
 {
     return_val_if_fail(tree != NULL, false);
 
@@ -545,7 +532,7 @@ ctree_insert(CTree* tree, cptr key, cptr value)
  * 'CFreeKeyFn' is present.
  */
 bool
-ctree_replace(CTree* tree, cptr key, cptr value)
+ctree_replace(ctree* tree, cptr key, cptr value)
 {
     return_val_if_fail(tree != NULL, false);
 
@@ -568,7 +555,7 @@ ctree_replace(CTree* tree, cptr key, cptr value)
  * returns false.
  */
 bool
-ctree_remove(CTree* tree, cptr key)
+ctree_remove(ctree* tree, cptr key)
 {
     return_val_if_fail((tree != NULL && key != NULL), false);
 
@@ -587,17 +574,17 @@ ctree_remove(CTree* tree, cptr key)
  * to the key if it was found.
  */
 cptr
-ctreenode_find(CTree* tree, cptr key)
+ctreenode_find(ctree* tree, cptr key)
 {
     return_val_if_fail(tree != NULL, NULL);
 
-    int        cmp;
-    CTreeNode* current = tree->root;
+    int    cmp;
+    cnode* current = tree->root;
 
     while(current != NULL) {
-        if((cmp = tree->compare_key_fn(current->key, key)) == 0)
+        if((cmp = tree->compare_key_fn(current->key, key)) == 0) {
             return current;
-        else if(cmp > 0)
+        } else if(cmp > 0)
             current = current->left;
         else
             current = current->right;
@@ -607,27 +594,44 @@ ctreenode_find(CTree* tree, cptr key)
 }
 
 /*
- * Returns pointer to the value of the given key.
+ * Returns pointer to the value of the key/value pair.
  * Returns NULL if key is not inside the tree.
  */
 cptr
-ctree_entry(CTree* tree, cptr key)
+ctree_entry(ctree* tree, cptr key)
 {
     return_val_if_fail(tree != NULL, NULL);
 
-    CTreeNode* entry = NULL;
+    cnode* entry;
 
     if((entry = ctreenode_find(tree, key)) != NULL)
         return entry->value;
 
-    return entry;
+    return NULL;
+}
+
+/*
+ * Returns pointer to the key of the key/value pair.
+ * Returns NULL if key is not inside the tree.
+ */
+cptr
+ctree_key(ctree* tree, cptr key)
+{
+    return_val_if_fail(tree != NULL, NULL);
+
+    cnode* entry;
+
+    if((entry = ctreenode_find(tree, key)) != NULL)
+        return entry->key;
+
+    return NULL;
 }
 
 /*
  * Returns the total node count in the CTree.
  */
 cuint
-ctree_size(CTree* tree)
+ctree_size(ctree* tree)
 {
     return tree->size;
 }
@@ -637,14 +641,14 @@ ctree_size(CTree* tree)
  * (size of all nodes) in bytes.
  */
 size_t
-ctree_size_bytes(CTree* tree)
+ctree_size_bytes(ctree* tree)
 {
-    return tree->size * sizeof(CTreeNode);
+    return tree->size * sizeof(cnode);
 }
 
 // Debug
 void
-print_node(CTreeNode* node)
+print_node(cnode* node)
 {
     if(node != NULL) {
         print_node(node->left);
@@ -654,7 +658,7 @@ print_node(CTreeNode* node)
 
 // Debug
 void
-print_tree(CTree* tree)
+print_tree(ctree* tree)
 {
     print_node(tree->root);
 }

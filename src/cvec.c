@@ -44,13 +44,14 @@ cvec_free(CVec* vec)
         vec->t_size   = 0;
         vec->len      = 0;
         free(vec->allocation);
+        free(vec);
     }
 }
 
 cuint
 cvec_expand(CVec* vec, size_t len)
 {
-    bptr new = (bptr) realloc(vec->allocation, len);
+    bptr new = (bptr) realloc(vec->allocation, vec->t_size * len);
 
     if(new == NULL)
         return 1;

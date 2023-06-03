@@ -108,7 +108,7 @@ clist_pop_front(Clist* clist)
     clist->head         = old_head->next;
 
     if(clist->head != NULL) {
-        clist->head->next = NULL;
+        clist->head->prev = NULL;
     } else {
         clist->tail = NULL;
     }

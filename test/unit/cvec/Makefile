@@ -1,14 +1,14 @@
-BIN = ctree_test
-LEAKBIN = ctree_test_memleak
+BIN = cvec_test
+LEAKBIN = cvec_test_memleak
 SRCDIR = .
-OBJDIR = obj
+OBJDIR = objects
 INCLUDES = ../../../src
 SRCPATH = ../../../src
 
-SRCFILE := $(SRCPATH)/ctree.c
-SRCOBJ := $(SRCPATH)/ctree.o
-SRCOBJ_NEW = $(OBJDIR)/ctree.o
-DEP_NEW = $(OBJDIR)/ctree.d
+SRCFILE := $(SRCPATH)/cvec.c
+SRCOBJ := $(SRCPATH)/cvec.o
+SRCOBJ_NEW = objects/cvec.o
+DEP_NEW = objects/cvec.d
 
 CFILES := $(wildcard $(SRCDIR)/*.c) 
 OBJECTS := $(patsubst $(SRCDIR)/%.c,$(OBJDIR)/%.o,$(CFILES))
@@ -16,7 +16,7 @@ DEPS := $(patsubst %.o,%.d,$(OBJECTS))
 
 CC = gcc
 DEPFLAGS = -MD -MP
-OPT = -Os
+OPT = -O0
 SANITIZER_FLAGS = -fsanitize=address -O1 -fno-omit-frame-pointer
 CFLAGS := -Werror -Wall -Wextra $(foreach dir,$(INCLUDES),-I$(dir)) $(DEPFLAGS) $(OPT)
 
@@ -41,7 +41,7 @@ test-leak: $(LEAKBIN)
 	@./$(notdir $(LEAKBIN))
 
 $(LEAKBIN): $(SRCOBJ)
-	@$(CC) $(SANITIZER_FLAGS) -g -o $@ $(OBJECTS) $(SRCOBJ_NEW) -lstest
+	@$(CC) $(SANITIZER_FLAGS) -o $@ $(OBJECTS) $(SRCOBJ_NEW) -lstest
 
 -include $(DEPS)
 

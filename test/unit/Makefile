@@ -1,4 +1,4 @@
-UNIT_TEST_DIRS = ctree
+UNIT_TEST_DIRS = ctree cvec clist
 
 all: $(UNIT_TEST_DIRS)
 

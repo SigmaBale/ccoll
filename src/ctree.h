@@ -1,17 +1,18 @@
 #ifndef __COL_TREE_H__
 #define __COL_TREE_H__
 
-#if !defined(__COL_LIB_INSIDE__) && !defined(__COL_TREE_C_FILE__)
+#if !defined(__COL_LIB_INSIDE__) && !defined(__COL_TREE_C_FILE__) &&           \
+    !defined(__COL_TEST__)
 #error "Only <collib.h> can be included directly."
 #endif
 
 #define __COL_H_FILE__
-#include "core.h"
+#include "ccore.h"
 #undef __COL_H_FILE__
 #include <stdbool.h>
 #include <stddef.h>
 
-typedef struct _CTree CTree;
+typedef struct _ctree ctree;
 
 /*
  * 'CTree' constructor.
@@ -33,7 +34,7 @@ typedef struct _CTree CTree;
  * together with the value.
  * If it is NULL then the user must free the memory.
  */
-CTree *ctree_new(CCompareKeyFn, CFreeKeyFn, CFreeValueFn);
+ctree *ctree_new(CCompareKeyFn, CFreeKeyFn, CFreeValueFn);
 
 /*
  * Free's up the tree and additionally all
@@ -46,7 +47,7 @@ CTree *ctree_new(CCompareKeyFn, CFreeKeyFn, CFreeValueFn);
  *
  * Either way the tree will get freed.
  */
-void ctree_free(CTree *tree);
+void ctree_free(ctree *tree);
 
 /*
  * Inserts key-value pair in the tree.
@@ -58,7 +59,7 @@ void ctree_free(CTree *tree);
  *
  * Returns true if the key was inserted.
  */
-bool ctree_insert(CTree *tree, cptr key, cptr value);
+bool ctree_insert(ctree *tree, cptr key, cptr value);
 
 /*
  * Removes the 'cptr' from the 'CTree'.
@@ -72,24 +73,30 @@ bool ctree_insert(CTree *tree, cptr key, cptr value);
  * Otherwise user is required to free
  * the key and/or value.
  */
-bool ctree_remove(CTree *tree, cptr key);
+bool ctree_remove(ctree *tree, cptr key);
 
 /*
  * Returns current size of the tree.
  * Size being total amount of keys.
  */
-cuint ctree_size(CTree *tree);
+cuint ctree_size(ctree *tree);
 
 /*
  * Returns size of the tree in bytes.
  * Size being total amount of keys * size of node.
  */
-size_t ctree_size_bytes(CTree *tree);
+size_t ctree_size_bytes(ctree *tree);
 
 /*
- * Returns pointer to the value of the given key.
+ * Returns pointer to the value of the key/value pair.
  * Returns NULL if key is not inside the tree.
  */
-cptr ctree_entry(CTree *tree, cptr key);
+cptr ctree_entry(ctree *tree, cptr key);
+
+/*
+ * Returns pointer to the key of the key/value pair.
+ * Returns NULL if key is not inside the tree.
+ */
+cptr ctree_key(ctree *tree, cptr key);
 
 #endif
