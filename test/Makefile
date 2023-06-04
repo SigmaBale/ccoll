@@ -25,4 +25,10 @@ test unit-test:
 integration-test:
 	@$(MAKE) -C $(INTEGRATION) test
 
-.PHONY: all clean clean-unit clean-integration unit-test integration-test test
+test-leak unit-test-leak:
+	@$(MAKE) -C $(UNIT) test
+
+integration-test-leak:
+	@$(MAKE) -C $(INTEGRATION) test
+
+.PHONY: all clean clean-unit clean-integration unit-test integration-test test unit-test-leak integration-test-leak

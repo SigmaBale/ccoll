@@ -11,4 +11,8 @@ clean:
 test:
 	@$(foreach dir,$(UNIT_TEST_DIRS),$(MAKE) -C $(dir) test;)
 
+test-leak:
+	@$(foreach dir,$(UNIT_TEST_DIRS),$(MAKE) -C $(dir) test-leak;)
+
+
 .PHONY: all clean test $(UNIT_TEST_DIRS)

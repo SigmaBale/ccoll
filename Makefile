@@ -4,6 +4,9 @@ TEST_DIR = test
 SRC_DIR = src
 OBJ_DIR = build/objects
 
+HEADER_INSTALL_DIR = /usr/local/include
+LIB_INSTALL_DIR = /usr/local/lib
+
 SRC_FILES := $(wildcard $(SRC_DIR)/*.c)
 OBJ_FILES := $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(SRC_FILES))
 DEP_FILES := $(patsubst %.o,%.d,$(OBJ_FILES))
@@ -32,6 +35,16 @@ unit-test test: $(LIB)
 integration-test: $(LIB)
 	@$(MAKE) -C $(TEST_DIR) integration-test
 
+test-leak unit-test-leak: $(LIB)
+	@$(MAKE) -C $(TEST_DIR) unit-test-leak
+
+integration-test-leak: $(LIB)
+	@$(MAKE) -C $(TEST_DIR) integration-test-leak
+
+install: $(LIB)
+	@sudo cp -i $(LIB) $(LIB_INSTALL_DIR)
+	@sudo cp -i include/collib.h $(HEADER_INSTALL_DIR)
+
 -include $(DEP_FILES)
 
-.PHONY: all clean test unit-test integration-test
+.PHONY: all clean test unit-test integration-test unit-test-leak integration-test-leak test-leak install
