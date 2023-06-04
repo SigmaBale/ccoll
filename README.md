@@ -1,8 +1,8 @@
 # ccol
 ## Dependencies
-`[memc](https://github.com/SigmaBale/memc)` - small 2 file library
+[`memc`](https://github.com/SigmaBale/memc) - small 2 file library
 
-`[stest](https://github.com/SigmaBale/stest)` - only for testing purposes, not required
+[`stest`](https://github.com/SigmaBale/stest) - only for testing purposes, not required
 otherwise
 
 ## About
