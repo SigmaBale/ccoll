@@ -6,24 +6,21 @@
 #endif
 
 #include <stdio.h>
+#include <stdlib.h>
 
-#ifndef COL_ERROR_OUT_OF_MEMORY
-#define COL_ERROR_OUT_OF_MEMORY(module) fprintf(stderr, "%s: out of memory\n", module)
+#ifndef COL_ALLOC_ERROR
+#define COL_ALLOC_ERROR                                                        \
+  fprintf(stderr, "%s:%d: allocation failed\n", __FILE_NAME__, __LINE__)
 #endif
 
-#ifndef COL_ERROR_INVALID_KEY
-#define COL_ERROR_INVALID_KEY(module, key) \
-    fprintf(stderr, "%s: invalid key -> '%p' (pointer)\n", module, key)
+#ifndef COL_ERROR
+#define COL_ERROR(desc)                                                        \
+  fprintf(stderr, "%s:%d: %s\n", __FILE_NAME__, __LINE__, desc)
 #endif
 
-#ifndef COL_ERROR_INVALID_VALUE
-#define COL_ERROR_INVALID_VALUE(module, value) \
-    fprintf(stderr, "%s: invalid value -> '%p' (pointer)\n", module, value)
-#endif
-
-#ifndef COL_ERROR_INVALID_COMPARISON_FUNCTION
-#define COL_ERROR_INVALID_COMPARISON_FUNCTION(module) \
-    fprintf(stderr, "%s: comparison fn is NULL\n", module)
+#ifndef COL_INDEX_OUT_OF_BOUNDS_ERROR
+#define COL_INDEX_OUT_OF_BOUNDS_ERROR                                           \
+  fprintf(stderr, "%s:%d: index out of bounds\n", __FILE_NAME__, __LINE__)
 #endif
 
 #endif

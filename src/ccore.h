@@ -9,13 +9,13 @@
   if (!(expr))                                                                 \
   return (val)
 
-typedef unsigned char* bptr;
+typedef unsigned char *bptr_t;
 
-typedef unsigned int cuint;
+typedef unsigned int cuint_t;
 
-typedef const void *cconstptr;
+typedef const void *cconstptr_t;
 
-typedef void *cptr;
+typedef void *cptr_t;
 
 /*
  * 'CCompareKeyFn' is alias for function pointer that is
@@ -23,7 +23,7 @@ typedef void *cptr;
  * structures that rely on comparison functions
  * for sorting the elements (returns int).
  */
-typedef int (*CCompareKeyFn)(cconstptr a_key, cconstptr b_key);
+typedef int (*CCompareKeyFn)(cconstptr_t a_key, cconstptr_t b_key);
 
 /*
  * 'CFreeKeyFn' is alias for function pointer that
@@ -33,8 +33,8 @@ typedef int (*CCompareKeyFn)(cconstptr a_key, cconstptr b_key);
  * gets removed from the data structure you should
  * provide the CFreeKeyFree.
  */
-typedef void (*CFreeKeyFn)(cptr key);
+typedef void (*CFreeKeyFn)(cptr_t key);
 
-typedef void (*CFreeValueFn)(cptr value);
+typedef void (*CFreeValueFn)(cptr_t value);
 
 #endif
