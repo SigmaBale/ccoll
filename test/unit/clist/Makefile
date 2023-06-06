@@ -7,8 +7,8 @@ SRCPATH = ../../../src
 
 SRCFILE := $(SRCPATH)/clist.c
 SRCOBJ := $(SRCPATH)/clist.o
-SRCOBJ_NEW = build/obj/clist.o
-DEP_NEW = build/obj/clist.d
+SRCOBJ_NEW = $(OBJDIR)/clist.o
+DEP_NEW = $(OBJDIR)/clist.d
 
 CFILES := $(wildcard $(SRCDIR)/*.c) 
 OBJECTS := $(patsubst $(SRCDIR)/%.c,$(OBJDIR)/%.o,$(CFILES))

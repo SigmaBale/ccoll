@@ -1,7 +1,7 @@
-BIN = ctree_test
-LEAKBIN = ctree_test_memleak
+BIN = build/ctree_test
+LEAKBIN = build/ctree_test_memleak
 SRCDIR = .
-OBJDIR = obj
+OBJDIR = build/obj
 INCLUDES = ../../../src
 SRCPATH = ../../../src
 
@@ -35,10 +35,10 @@ clean:
 	@rm -rf $(OBJECTS) $(DEPS) $(BIN) $(SRCOBJ_NEW) $(DEP_NEW) $(LEAKBIN)
 
 test: $(BIN)
-	@./$(notdir $(BIN))
+	@./$(BIN)
 
 test-leak: $(LEAKBIN)
-	@./$(notdir $(LEAKBIN))
+	@./$(LEAKBIN)
 
 $(LEAKBIN): $(SRCOBJ)
 	@$(CC) $(SANITIZER_FLAGS) -g -o $@ $(OBJECTS) $(SRCOBJ_NEW) -lstest
