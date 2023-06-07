@@ -18,8 +18,14 @@
   fprintf(stderr, "%s:%d: %s\n", __FILE_NAME__, __LINE__, desc)
 #endif
 
+#ifndef COL_CAPACITY_EXCEEDED_ERROR
+#define COL_CAPACITY_EXCEEDED_ERROR                                            \
+  fprintf(stderr, "%s:%d: capacity exceeded, allocation too large\n",          \
+          __FILE_NAME__, __LINE__)
+#endif
+
 #ifndef COL_INDEX_OUT_OF_BOUNDS_ERROR
-#define COL_INDEX_OUT_OF_BOUNDS_ERROR                                           \
+#define COL_INDEX_OUT_OF_BOUNDS_ERROR                                          \
   fprintf(stderr, "%s:%d: index out of bounds\n", __FILE_NAME__, __LINE__)
 #endif
 

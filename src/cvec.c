@@ -89,21 +89,30 @@ cvec_free(cvec* vec)
 }
 
 uint
-_cvec_expand(cvec* vec, size_t len)
+_cvec_maybe_expand(cvec* vec)
 {
-    // TODO: Proper error checking this is just for debug
-    assert(len <= (uint) INT_MAX);
+    size_t capacity = vec->capacity;
 
-    bptr_t new = realloc(vec->buffer, vec->element_size * len);
+    if(capacity == vec->len) {
+        size_t new_cap;
 
-    if(new == NULL && len != 0) {
-        COL_ALLOC_ERROR;
-        return 1;
+        new_cap = (capacity == 0) ? 1 : capacity * 2;
+
+        if(new_cap > (uint) INT_MAX) {
+            COL_CAPACITY_EXCEEDED_ERROR;
+            return 1;
+        }
+
+        bptr_t new_buf = realloc(vec->buffer, vec->element_size * new_cap);
+
+        if(new_buf == NULL) {
+            COL_ALLOC_ERROR;
+            return 1;
+        }
+
+        vec->buffer   = new_buf;
+        vec->capacity = new_cap;
     }
-
-    vec->buffer   = new;
-    vec->capacity = len;
-
     return 0;
 }
 
@@ -112,7 +121,7 @@ cvec_with_capacity(size_t element_size, size_t capacity, CFreeValueFn free_val_f
 {
     cvec vec = cvec_new(element_size, free_val_fn);
 
-    if(_cvec_expand(&vec, capacity) != 0) {
+    if(_cvec_maybe_expand(&vec) != 0) {
         COL_ERROR("failed to expand the capacity");
     }
 
@@ -120,7 +129,7 @@ cvec_with_capacity(size_t element_size, size_t capacity, CFreeValueFn free_val_f
 }
 
 cvec
-cvec_from(cptr_t array, size_t len, CFreeValueFn free_val_fn)
+cvec_from(cconstptr_t array, size_t len, CFreeValueFn free_val_fn)
 {
 
     size_t element_size;
@@ -140,31 +149,44 @@ cvec_from(cptr_t array, size_t len, CFreeValueFn free_val_fn)
 }
 
 cconstptr_t
-cvec_get(cvec* vec, uint idx)
+cvec_get(const cvec* vec, uint idx)
 {
     return (cconstptr_t) &vec->buffer[idx * vec->element_size];
 }
 
 cptr_t
-cvec_get_mut(cvec* vec, uint idx)
+cvec_get_mut(const cvec* vec, uint idx)
 {
     return &vec->buffer[idx * vec->element_size];
 }
 
+void
+cvec_set(cvec* vec, uint idx, cconstptr_t value)
+{
+    if(vec != NULL) {
+
+        if(idx >= vec->len) {
+            COL_INDEX_OUT_OF_BOUNDS_ERROR;
+            return;
+        }
+
+        memcpy(cvec_get_mut(vec, idx), value, vec->element_size);
+    }
+}
+
 uint
-cvec_push(cvec* vec, cptr_t value)
+cvec_push(cvec* vec, cconstptr_t value)
 {
     // TODO: check __Non_null__ attribute and is user responsible for
     // Undefined Behaviour of passing in NULL?
     return_val_if_fail(vec != NULL && value != NULL, 1);
 
     // If len would exceed the capacity, expand!
-    if(vec->capacity == vec->len)
-        if(_cvec_expand(vec, vec->capacity * 2) != 0)
-            return 1;
+    if(_cvec_maybe_expand(vec) != 0)
+        return 1;
 
-    cptr_t new_index = cvec_get_mut(vec, vec->len);
-    memmove(new_index, value, vec->element_size);
+    cptr_t hole = cvec_get_mut(vec, vec->len);
+    memmove(hole, value, vec->element_size);
 
     vec->len++;
 
@@ -186,14 +208,14 @@ cvec_pop(cvec* vec)
 }
 
 int
-cvec_len(cvec* vec)
+cvec_len(const cvec* vec)
 {
     return_val_if_fail(vec != NULL, -1);
     return vec->len;
 }
 
 uint
-cvec_insert(cvec* vec, cptr_t element, uint index)
+cvec_insert(cvec* vec, cconstptr_t element, uint index)
 {
     return_val_if_fail(vec != NULL && element != NULL, 1);
 
@@ -205,9 +227,8 @@ cvec_insert(cvec* vec, cptr_t element, uint index)
     uint capacity = vec->capacity;
     uint len      = vec->len;
 
-    if(len == capacity)
-        if(_cvec_expand(vec, capacity * 2) != 0)
-            return 1;
+    if(_cvec_maybe_expand(vec) != 0)
+        return 1;
 
     cptr_t hole     = cvec_get_mut(vec, index);
     size_t ele_size = vec->element_size;

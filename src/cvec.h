@@ -18,11 +18,12 @@ typedef unsigned char *bptr_t;
 
 cvec cvec_new(size_t t_size, CFreeValueFn free_val_fn);
 
-cvec cvec_from(cptr_t src, size_t len, CFreeValueFn free_val_fn);
+cvec cvec_from(cconstptr_t src, size_t len, CFreeValueFn free_val_fn);
 
-cvec cvec_with_capacity(size_t t_size, size_t capacity, CFreeValueFn free_val_fn);
+cvec cvec_with_capacity(size_t t_size, size_t capacity,
+                        CFreeValueFn free_val_fn);
 
-uint cvec_push(cvec *vec, cptr_t value);
+uint cvec_push(cvec *vec, cconstptr_t value);
 
 cptr_t cvec_pop(cvec *vec);
 
@@ -30,17 +31,19 @@ void cvec_clear(cvec *vec);
 
 void cvec_clear_with_cap(cvec *vec);
 
-cconstptr_t cvec_get(cvec *vec, uint index);
+cconstptr_t cvec_get(const cvec *vec, uint index);
 
-cptr_t cvec_get_mut(cvec *vec, uint index);
+cptr_t cvec_get_mut(const cvec *vec, uint index);
 
-int cvec_len(cvec *vec);
+void cvec_set(cvec *vec, uint idx, cconstptr_t value);
+
+int cvec_len(const cvec *vec);
 
 void cvec_free(cvec *vec);
 
-int cvec_capacity(cvec *vec);
+int cvec_capacity(const cvec *vec);
 
-uint cvec_insert(cvec *vec, cptr_t element, uint index);
+uint cvec_insert(cvec *vec, cconstptr_t element, uint index);
 
 cptr_t cvec_remove(cvec *vec, uint index);
 
