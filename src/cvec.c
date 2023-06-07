@@ -148,14 +148,47 @@ cvec_from(cconstptr_t array, size_t len, CFreeValueFn free_val_fn)
     return vec;
 }
 
-cconstptr_t
+cptr_t
 cvec_get(const cvec* vec, uint idx)
+{
+    if(vec != NULL) {
+        if(idx >= vec->len) {
+            COL_INDEX_OUT_OF_BOUNDS_ERROR;
+            return NULL;
+        }
+
+        cptr_t ret_val;
+        memcpy(ret_val, cvec_get_ref(vec, idx), vec->element_size);
+
+        return ret_val;
+    }
+    return NULL;
+}
+
+uint
+cvec_get_into(const cvec* vec, uint idx, cptr_t out)
+{
+    if(vec != NULL) {
+        if(idx >= vec->len) {
+            COL_INDEX_OUT_OF_BOUNDS_ERROR;
+            return 1;
+        }
+
+        memcpy(out, cvec_get_ref(vec, idx), vec->element_size);
+
+        return 0;
+    }
+    return 1;
+}
+
+cconstptr_t
+cvec_get_ref(const cvec* vec, uint idx)
 {
     return (cconstptr_t) &vec->buffer[idx * vec->element_size];
 }
 
 cptr_t
-cvec_get_mut(const cvec* vec, uint idx)
+cvec_get_mut(cvec* vec, uint idx)
 {
     return &vec->buffer[idx * vec->element_size];
 }

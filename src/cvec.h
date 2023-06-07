@@ -31,9 +31,13 @@ void cvec_clear(cvec *vec);
 
 void cvec_clear_with_cap(cvec *vec);
 
-cconstptr_t cvec_get(const cvec *vec, uint index);
+cptr_t cvec_get(const cvec *vec, uint index);
 
-cptr_t cvec_get_mut(const cvec *vec, uint index);
+uint cvec_get_into(const cvec *vec, uint index, cptr_t out);
+
+cconstptr_t cvec_get_ref(const cvec *vec, uint index);
+
+cptr_t cvec_get_mut(cvec *vec, uint index);
 
 void cvec_set(cvec *vec, uint idx, cconstptr_t value);
 
