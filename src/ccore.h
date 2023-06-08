@@ -18,23 +18,36 @@ typedef const void *cconstptr_t;
 typedef void *cptr_t;
 
 /*
- * 'CCompareKeyFn' is alias for function pointer that is
- * used to compare keys inserted into data
- * structures that rely on comparison functions
- * for sorting the elements (returns int).
+ * 'CCompareKeyFn' is a function used for comparing the elements/keys when
+ * inserting/searching/removing it from the data structure.
  */
 typedef int (*CCompareKeyFn)(cconstptr_t a_key, cconstptr_t b_key);
 
 /*
- * 'CFreeKeyFn' is alias for function pointer that
- * is user provided and applied each time key
- * gets removed from the data structure.
- * Meaning if you want to free the value (key) when it
- * gets removed from the data structure you should
- * provide the CFreeKeyFree.
+ * 'CFreeKeyFn' is a function used for freeing the malloc'ed key that is
+ * stored inside a data structure.
+ * If not provided in the data structure that requires it in order to free
+ * the key, then freeing the key is user's responsibility.
  */
 typedef void (*CFreeKeyFn)(cptr_t key);
 
+/*
+ * 'CFreeValueFn' is a function used for freeing the malloc'ed value that is
+ * stored inside a data structure.
+ * If not provided in the data structure that requires it in order to free
+ * the value, then freeing the value is user's responsibility.
+ */
 typedef void (*CFreeValueFn)(cptr_t value);
+
+/*
+ * 'CClearValue' is a function used for 'clearing' the value inside
+ * the data structure.
+ * This differs from 'freeing' the value, clearing would define
+ * freeing all the values that the original value contains or just
+ * resetting the original value.
+ * The original value should not be free'd if malloc'ed, doing so
+ * will cause Undefined Behaviour.
+ */
+typedef void (*CClearValueFn)(cptr_t value);
 
 #endif
