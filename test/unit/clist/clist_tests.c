@@ -15,8 +15,8 @@ TEST(cursor_splice_test);
 int
 main(void)
 {
-    ssuite* suite_clist  = ssuite_new("CLIST CORE");
-    ssuite* suite_cursor = ssuite_new("CLIST CURSOR");
+    ssuite* suite_clist  = ssuite_new("clist-core");
+    ssuite* suite_cursor = ssuite_new("clist-cursor");
 
     ssuite_add_test(suite_clist, clist_new_test);
     ssuite_add_test(suite_clist, clist_push_test);

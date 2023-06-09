@@ -1,5 +1,6 @@
 #define __COL_TEST__
 #include "../../../src/cvec.h"
+#include <stdio.h>
 #include <stest.h>
 
 TEST(cvec_create_test);
@@ -24,21 +25,21 @@ main(void)
 
 TEST(cvec_create_test)
 {
-    CVec* new = cvec_new(sizeof(int));
+    cvec* new = cvec_new(sizeof(int), NULL);
     ASSERT_NEQ(new, NULL);
 
-    CVec* new_with_cap = cvec_with_capacity(sizeof(char*), 10);
+    cvec* new_with_cap = cvec_with_capacity(sizeof(char*), 10, NULL);
     ASSERT_EQ(cvec_capacity(new_with_cap), 10);
 
     double arr[] = { 53.5, 10.5342, 100.15 };
     size_t len   = sizeof(arr) / sizeof(double);
 
-    CVec* new_from = cvec_from(arr, len);
+    cvec* new_from = cvec_from(arr, len, sizeof(double), NULL);
     ASSERT(cvec_len(new_from) == (int) len);
 
-    cvec_free(new);
-    cvec_free(new_with_cap);
-    cvec_free(new_from);
+    cvec_drop(&new, true);
+    cvec_drop(&new_with_cap, true);
+    cvec_drop(&new_from, true);
 }
 
 TEST(cvec_pop_test)
@@ -49,7 +50,7 @@ TEST(cvec_pop_test)
         void*  pfield;
     };
 
-    CVec* vec = cvec_new(sizeof(struct TestStruct));
+    cvec* vec = cvec_new(sizeof(struct TestStruct), NULL);
 
     cvec_push(vec, &(struct TestStruct) { 0, 5, NULL });
     cvec_push(vec, &(struct TestStruct) { 2.5, 1, NULL });
@@ -67,17 +68,20 @@ TEST(cvec_pop_test)
     ASSERT_EQ(value->dfield, 67.68);
     ASSERT_EQ(value->ifield, 69);
     ASSERT(value->pfield == NULL);
+    free(value);
 
     // and repeat
     value = cvec_pop(vec);
     ASSERT_EQ(value->dfield, 0.115);
     ASSERT_EQ(value->ifield, 9998);
     ASSERT(value->pfield == NULL);
+    free(value);
 
     value = cvec_pop(vec);
     ASSERT_EQ(value->dfield, 5552.5);
     ASSERT_EQ(value->ifield, -252);
     ASSERT(value->pfield == NULL);
+    free(value);
 
     ASSERT(cvec_len(vec) == 3);
 
@@ -85,11 +89,13 @@ TEST(cvec_pop_test)
     ASSERT_EQ(value->dfield, 10.523455);
     ASSERT_EQ(value->ifield, 155);
     ASSERT(value->pfield == NULL);
+    free(value);
 
     value = cvec_pop(vec);
     ASSERT_EQ(value->dfield, 2.5);
     ASSERT_EQ(value->ifield, 1);
     ASSERT(value->pfield == NULL);
+    free(value);
 
     ASSERT(cvec_len(vec) == 1);
 
@@ -97,15 +103,16 @@ TEST(cvec_pop_test)
     ASSERT_EQ(value->dfield, 0);
     ASSERT_EQ(value->ifield, 5);
     ASSERT(value->pfield == NULL);
+    free(value);
 
     ASSERT(cvec_len(vec) == 0);
 
-    cvec_free(vec);
+    cvec_drop(&vec, true);
 }
 
 TEST(cvec_push_test)
 {
-    CVec* vec = cvec_new(sizeof(int));
+    cvec* vec = cvec_new(sizeof(int), NULL);
     ASSERT(vec != NULL);
 
     cvec_push(vec, &(int) { 5 });
@@ -122,5 +129,5 @@ TEST(cvec_push_test)
     cvec_push(vec, &(int) { 10000 });
     ASSERT(cvec_len(vec) == 8);
 
-    cvec_free(vec);
+    cvec_drop(&vec, true);
 }

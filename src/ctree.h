@@ -9,10 +9,19 @@
 #define __COL_H_FILE__
 #include "ccore.h"
 #undef __COL_H_FILE__
+
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdlib.h>
 
-typedef struct _ctree ctree;
+typedef struct ctree ctree;
+
+typedef struct ctree_node ctree_node;
+
+typedef struct ctree_iterator ctree_iterator;
+
+typedef struct ctree_iter ctree_iter;
+
 
 /*
  * 'CTree' constructor.
@@ -34,7 +43,7 @@ typedef struct _ctree ctree;
  * together with the value.
  * If it is NULL then the user must free the memory.
  */
-ctree *ctree_new(CCompareKeyFn, CFreeKeyFn, CFreeValueFn);
+ctree *ctree_new(CCompareKeyFn, CFreeKeyFn, CFreeValueFn, CClone, CClone);
 
 /*
  * Free's up the tree and additionally all
@@ -59,10 +68,10 @@ void ctree_free(ctree *tree);
  *
  * Returns true if the key was inserted.
  */
-bool ctree_insert(ctree *tree, cptr key, cptr value);
+bool ctree_insert(ctree *tree, cptr_t key, cptr_t value);
 
 /*
- * Removes the 'cptr' from the 'CTree'.
+ * Removes the 'cptr_t' from the 'CTree'.
  * Returns true if key was removed.
  * Returns false if key was not found.
  *
@@ -73,13 +82,13 @@ bool ctree_insert(ctree *tree, cptr key, cptr value);
  * Otherwise user is required to free
  * the key and/or value.
  */
-bool ctree_remove(ctree *tree, cptr key);
+bool ctree_remove(ctree *tree, cptr_t key, bool return_ele);
 
 /*
  * Returns current size of the tree.
  * Size being total amount of keys.
  */
-cuint ctree_size(ctree *tree);
+uint ctree_size(ctree *tree);
 
 /*
  * Returns size of the tree in bytes.
@@ -91,12 +100,12 @@ size_t ctree_size_bytes(ctree *tree);
  * Returns pointer to the value of the key/value pair.
  * Returns NULL if key is not inside the tree.
  */
-cptr ctree_entry(ctree *tree, cptr key);
+cptr_t ctree_entry(ctree *tree, cptr_t key);
 
 /*
  * Returns pointer to the key of the key/value pair.
  * Returns NULL if key is not inside the tree.
  */
-cptr ctree_key(ctree *tree, cptr key);
+cptr_t ctree_key(ctree *tree, cptr_t key);
 
 #endif

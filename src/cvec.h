@@ -11,6 +11,7 @@
 #undef __COL_H_FILE__
 #include <stddef.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 typedef struct _cvec cvec;
 

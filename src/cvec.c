@@ -1,8 +1,6 @@
-#include <assert.h>
 #include <limits.h>
 #include <memc.h>
 #include <memory.h>
-#include <stdalign.h>
 #include <stdbool.h>
 
 #define __COL_VEC_C_FILE__
@@ -32,7 +30,7 @@ struct _cvec {
     size_t        len;
     const size_t  element_size;
     CClearValueFn clear_val_fn;
-    uint          ref_count;
+    uint          ref_count; // Useless for now, will implement...
 };
 
 /*
@@ -50,7 +48,7 @@ cvec_new(size_t element_size, CClearValueFn clear_val_fn)
     return_val_if_fail(element_size < UINT_MAX, NULL);
 
     cvec init = {
-        .buffer       = calloc(0, element_size),
+        .buffer       = NULL,
         .capacity     = 0,
         .len          = 0,
         .element_size = element_size,
@@ -58,6 +56,7 @@ cvec_new(size_t element_size, CClearValueFn clear_val_fn)
     };
 
     cvec* vec = memc_malloc(cvec);
+
 #ifndef COL_MEMORY_CONSTRAINED
     if(__builtin_expect(vec == NULL, 0)) {
 #else
@@ -70,6 +69,64 @@ cvec_new(size_t element_size, CClearValueFn clear_val_fn)
     memcpy(vec, &init, sizeof(cvec));
 
     return vec;
+}
+
+/*
+ * Internal function that gets the 'element' inside the 'vec' at index 'idx'.
+ * This is used after all the error checking is done to fetch the value.
+ * This function should be inlined during compilation.
+ */
+static inline cptr_t
+_cvec_index(cvec* vec, uint idx)
+{
+    return vec->buffer + (idx * (vec->element_size));
+}
+
+/*
+ * Internal function that 'maybe' expands the 'cvec' buffer.
+ * If 'capacity' is same size as 'len' then the buffer expands.
+ * If buffer is expanded successfully function returns 0.
+ * If new buffer size would overflow 'UINT_MAX' then the buffer is not expanded,
+ * err msg gets printed to stderr and function fails returning 1.
+ * If buffer size is valid but allocation fails, err msg gets printed to stderr and
+ * function returns 1.
+ */
+static uint
+_cvec_maybe_expand(cvec* vec)
+{
+    size_t capacity = vec->capacity;
+
+    if(capacity == vec->len) {
+        size_t new_cap;
+        size_t elsize = vec->element_size;
+
+        new_cap = (capacity == 0) ? 1 : capacity * 2;
+
+#ifndef COL_MEMORY_CONSTRAINED
+        if(__builtin_expect(new_cap * elsize > (uint) UINT_MAX, 0)) {
+#else
+        if(new_cap * elsize > (uint) INT_MAX) {
+#endif
+            COL_CAPACITY_EXCEEDED_ERROR;
+            return 1;
+        }
+
+        bptr_t new_buf = realloc(vec->buffer, elsize * new_cap);
+
+#ifndef COL_MEMORY_CONSTRAINED
+        if(__builtin_expect(new_buf == NULL, 0)) {
+#else
+        if(new_buf == NULL) {
+#endif
+            COL_ALLOC_ERROR;
+            return 1;
+        }
+
+        vec->buffer   = new_buf;
+        vec->capacity = new_cap;
+    }
+
+    return 0;
 }
 
 /*
@@ -115,55 +172,7 @@ cvec_clear_with_cap(cvec* vec)
 }
 
 /*
- * Internal function that 'maybe' expands the 'cvec' buffer.
- * If 'capacity' is same size as 'len' then the buffer expands.
- * If buffer is expanded successfully function returns 0.
- * If new buffer size would overflow 'UINT_MAX' then the buffer is not expanded,
- * err msg gets printed to stderr and function fails returning 1.
- * If buffer size is valid but allocation fails, err msg gets printed to stderr and
- * function returns 1.
- */
-uint
-_cvec_maybe_expand(cvec* vec)
-{
-    size_t capacity = vec->capacity;
-
-    if(capacity == vec->len) {
-        size_t new_cap;
-        size_t elsize = vec->element_size;
-
-        new_cap = (capacity == 0) ? 1 : capacity * 2;
-
-#ifndef COL_MEMORY_CONSTRAINED
-        if(__builtin_expect(new_cap * elsize > (uint) UINT_MAX, 0)) {
-#else
-        if(new_cap * elsize > (uint) INT_MAX) {
-#endif
-            COL_CAPACITY_EXCEEDED_ERROR;
-            return 1;
-        }
-
-        bptr_t new_buf = realloc(vec->buffer, elsize * new_cap);
-
-#ifndef COL_MEMORY_CONSTRAINED
-        if(__builtin_expect(new_buf == NULL, 0)) {
-#else
-        if(new_buf == NULL) {
-#endif
-            COL_ALLOC_ERROR;
-            return 1;
-        }
-
-        vec->buffer   = new_buf;
-        vec->capacity = new_cap;
-    }
-
-    return 0;
-}
-
-/*
- * 'cvec' constructor but with custom capacity.
- * Returns 'cvec' with the 'capacity' provided.
+ * 'cvec' constructor but with custom capacity, returns 'cvec' with the 'capacity' provided.
  * If 'element_size' is 0 function returns NULL, if allocation fails err msg gets
  * printed to stderr and NULL is returned.
  */
@@ -182,13 +191,20 @@ cvec_with_capacity(size_t element_size, size_t capacity, CClearValueFn clear_val
         return NULL;
     }
 
+    void* new_buf = realloc(vec->buffer, capacity * element_size);
+
 #ifndef COL_MEMORY_CONSTRAINED
-    if(__builtin_expect(_cvec_maybe_expand(vec) != 0, 0)) {
+    if(__builtin_expect(new_buf == NULL, 0)) {
 #else
     if(_cvec_maybe_expand(vec) != 0) {
 #endif
+        COL_ALLOC_ERROR;
+        free(vec);
         return NULL;
     }
+
+    vec->buffer   = new_buf;
+    vec->capacity = capacity;
 
     return vec;
 }
@@ -238,9 +254,19 @@ cvec_get(const cvec* vec, uint idx)
         return NULL;
     }
 
-    cptr_t ret_val;
-    memcpy(ret_val, cvec_get_ref(vec, idx), vec->element_size);
+    size_t elsize = vec->element_size;
 
+    cptr_t ret_val = malloc(elsize);
+#ifndef COL_MEMORY_CONSTRAINED
+    if(__builtin_expect(ret_val == NULL, 0)) {
+#else
+    if(ret_val == NULL) {
+#endif
+        COL_ALLOC_ERROR;
+        return NULL;
+    }
+
+    memcpy(ret_val, cvec_get_ref(vec, idx), elsize);
     return ret_val;
 }
 
@@ -284,7 +310,7 @@ cvec_get_ref(const cvec* vec, uint idx)
         return NULL;
     }
 
-    return (cconstptr_t) &vec->buffer[idx * vec->element_size];
+    return (cconstptr_t) vec->buffer + (idx * (vec->element_size));
 }
 
 /*
@@ -304,7 +330,7 @@ cvec_get_mut(cvec* vec, uint idx)
         return NULL;
     }
 
-    return &vec->buffer[idx * vec->element_size];
+    return _cvec_index(vec, idx);
 }
 
 /*
@@ -346,7 +372,7 @@ cvec_push(cvec* vec, cconstptr_t element)
         return 1;
     }
 
-    cptr_t hole = cvec_get_mut(vec, vec->len);
+    cptr_t hole = _cvec_index(vec, vec->len);
     memmove(hole, element, vec->element_size);
 
     vec->len++;
@@ -365,8 +391,8 @@ cvec_pop(cvec* vec)
     return_val_if_fail(vec != NULL && vec->len != 0, NULL);
 
     size_t ele_size = vec->element_size;
-    void*  val      = cvec_get_mut(vec, --vec->len);
-    void*  ret_val  = malloc(sizeof(ele_size));
+    void*  val      = _cvec_index(vec, vec->len - 1);
+    void*  ret_val  = malloc(ele_size);
 
 #ifndef COL_MEMORY_CONSTRAINED
     if(__builtin_expect(ret_val == NULL, 0)) {
@@ -378,6 +404,8 @@ cvec_pop(cvec* vec)
     }
 
     memcpy(ret_val, val, ele_size);
+
+    vec->len--;
 
     return ret_val;
 }
@@ -394,6 +422,17 @@ cvec_len(const cvec* vec)
 }
 
 /*
+ * Getter function, returns current 'capacity' of 'vec'.
+ * If 'vec' is NULL function returns -1.
+ */
+int
+cvec_capacity(const cvec* vec)
+{
+    return_val_if_fail(vec != NULL, -1);
+    return vec->capacity;
+}
+
+/*
  * Inserts 'element' into the 'vec' at index 'idx'.
  * If buffer needs to expand and fails function returns 1.
  * If 'idx' is out of bounds, err msg is printed to stderr and function returns 1.
@@ -404,13 +443,12 @@ cvec_insert(cvec* vec, cconstptr_t element, uint idx)
 {
     return_val_if_fail(vec != NULL && element != NULL, 1);
 
-    if(idx > vec->len) {
+    uint len = vec->len;
+
+    if(idx > len) {
         COL_INDEX_OUT_OF_BOUNDS_ERROR;
         return 1;
-    } else if(__builtin_expect(idx != vec->len, 1)) {
-        uint capacity = vec->capacity;
-        uint len      = vec->len;
-
+    } else if(idx != len) {
 #ifndef COL_MEMORY_CONSTRAINED
         if(__builtin_expect(_cvec_maybe_expand(vec) != 0, 0)) {
 #else
@@ -486,6 +524,8 @@ cvec_drop(cvec** vecp, bool drop_buf)
             vec->buffer       = NULL;
             if(drop_buf)
                 free(temp);
+            temp = *vecp;
+            free(temp);
             *vecp = NULL;
         }
     }
@@ -657,8 +697,8 @@ cvec_iterator_next_back(cvec_iterator* iterator)
 void
 cvec_iterator_drop(cvec_iterator** iteratorp)
 {
-    cvec_iterator* iterator;
-    if(iterator != NULL && (iterator = *iteratorp) != NULL) {
+    cvec_iterator* iterator = NULL;
+    if(iteratorp != NULL && (iterator = *iteratorp) != NULL) {
         if(iterator->clear_val_fn) {
             size_t        len  = iterator->len;
             cptr_t        bufp = iterator->buffer;

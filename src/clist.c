@@ -51,49 +51,52 @@
  * and 'prev' (previous) Node in the list.
  */
 typedef struct _clist_node {
-    cptr                data;
+    cptr_t              data;
     struct _clist_node* next;
     struct _clist_node* prev;
 } clist_node;
 
 /*
- * 'CList' is a entry point to the linked list.
+ * 'clist' is a entry point to the linked list.
  * It holds pointers to the 'head' (start) and the
  * 'tail' (end) of the list.
  *
- * 'len' is a value representing total amount of
- * nodes in the CList.
- * It provides us with some usefull helper functions
- * and usefull API for the user.
- * It also is used in functions defined on the CListCursor
- * struct (read more about Cursor above its definition),
- * that gives us some neat features such as splicing
+ * 'len' is a value representing total amount of nodes in the clist.
+ * It provides us with some usefull helper functions and usefull API for the user.
+ * It also is used in functions defined on the ccursor struct (read more about
+ * Cursor above its definition), that gives us some neat features such as splicing
  * and spliting the linked list.
  */
 struct _clist {
     clist_node*  head;
     clist_node*  tail;
-    cuint        len;
+    uint         len;
     CFreeValueFn free_val_fn;
 };
 
-static clist_node* node_new(cconstptr);
-static cptr        node_free(clist_node*);
+static clist_node* node_new(cconstptr_t);
+static cptr_t      node_free(clist_node*);
 
 /*
- * CList constructor, returns the pointer
+ * clist constructor, returns the pointer
  * to the underlying structure allocated on the heap.
  */
 clist*
 clist_new(CFreeValueFn free_val_fn)
 {
     clist* list = memc_malloc(clist);
+
+#ifndef COL_MEMORY_CONSTRAINED
+    if(__builtin_expect(list != NULL, 1)) {
+#else
     if(list != NULL) {
+#endif
         list->head        = NULL;
         list->tail        = NULL;
         list->len         = 0;
         list->free_val_fn = free_val_fn;
     }
+
     return list;
 }
 
@@ -101,7 +104,7 @@ clist_new(CFreeValueFn free_val_fn)
  * Removes the value from the front (head) of the list,
  * returning the pointer to the value that was stored in the list.
  */
-cptr
+cptr_t
 clist_pop_front(clist* clist)
 {
     return_val_if_fail(clist != NULL && clist->head != NULL, NULL);
@@ -123,7 +126,7 @@ clist_pop_front(clist* clist)
  * Removes the value from the back (tail) of the list,
  * returning the pointer to the value that was stored in the list.
  */
-cptr
+cptr_t
 clist_pop_back(clist* clist)
 {
     return_val_if_fail(clist != NULL && clist->tail != NULL, NULL);
@@ -148,15 +151,18 @@ clist_pop_back(clist* clist)
  * Returns NULL if the value was not found, or any of the parameter
  * pointers is NULL.
  */
-cptr
-clist_pop(clist* clist, cconstptr data, CCompareKeyFn cmp)
+cptr_t
+clist_pop(clist* clist, cconstptr_t data, CCompareKeyFn cmp)
 {
     return_val_if_fail(clist != NULL && data != NULL && cmp != NULL, NULL);
 
     clist_node* current;
-    cuint       idx = 0;
+    uint        idx = 0;
+
     for(current = clist->head; current != NULL; current = current->next) {
+
         if(cmp(current->data, data) == 0) {
+
             if(idx == 0)
                 clist->head = current->next;
             else if(idx == clist->len - 1)
@@ -168,6 +174,7 @@ clist_pop(clist* clist, cconstptr data, CCompareKeyFn cmp)
                 current->prev->next = current->next;
 
             clist->len--;
+
             return node_free(current);
         }
         idx++;
@@ -185,14 +192,19 @@ clist_pop(clist* clist, cconstptr data, CCompareKeyFn cmp)
  * the list will stay in its previous state before insertion.
  */
 bool
-clist_push_front(clist* clist, cconstptr data)
+clist_push_front(clist* clist, cconstptr_t data)
 {
     return_val_if_fail(clist != NULL && data != NULL, false);
 
     clist_node* new_head = node_new(data);
 
-    if(new_head == NULL)
+#ifndef COL_MEMORY_CONSTRAINED
+    if(__builtin_expect(new_head == NULL, 0)) {
+#else
+    if(new_head == NULL) {
+#endif
         return false;
+    }
 
     if(clist->head != NULL) {
         clist->head->prev = new_head;
@@ -215,14 +227,19 @@ clist_push_front(clist* clist, cconstptr data)
  * the list will stay in its previous state before insertion.
  */
 bool
-clist_push_back(clist* clist, cconstptr data)
+clist_push_back(clist* clist, cconstptr_t data)
 {
     return_val_if_fail(clist != NULL && data != NULL, false);
 
     clist_node* new_tail = node_new(data);
 
-    if(new_tail == NULL)
+#ifndef COL_MEMORY_CONSTRAINED
+    if(__builtin_expect(new_tail == NULL, 0)) {
+#else
+    if(new_tail == NULL) {
+#endif
         return false;
+    }
 
     if(clist->tail != NULL) {
         clist->tail->next = new_tail;
@@ -261,7 +278,7 @@ clist_len(const clist* clist)
  * the value while it is still 'stored'
  * in the list.
  */
-cconstptr
+cconstptr_t
 clist_front(const clist* clist)
 {
     return_val_if_fail(clist != NULL, NULL);
@@ -284,7 +301,7 @@ clist_front(const clist* clist)
  * the value while it is still 'stored'
  * in the list.
  */
-cconstptr
+cconstptr_t
 clist_back(const clist* clist)
 {
     return_val_if_fail(clist != NULL, NULL);
@@ -301,7 +318,7 @@ clist_back(const clist* clist)
  * parameter pointers is NULL.
  */
 bool
-clist_contains(const clist* clist, cconstptr data, CCompareKeyFn cmp)
+clist_contains(const clist* clist, cconstptr_t data, CCompareKeyFn cmp)
 {
     return_val_if_fail(clist != NULL && data != NULL && cmp != NULL, NULL);
 
@@ -315,10 +332,10 @@ clist_contains(const clist* clist, cconstptr data, CCompareKeyFn cmp)
  *
  * Freeing the value is 'Undefined Behaviour'.
  */
-cptr
-clist_find_mut(const clist* clist, cconstptr data, CCompareKeyFn cmp)
+cptr_t
+clist_find_mut(const clist* clist, cconstptr_t data, CCompareKeyFn cmp)
 {
-    return (cptr) clist_find(clist, data, cmp);
+    return (cptr_t) clist_find(clist, data, cmp);
 }
 
 /*
@@ -332,8 +349,8 @@ clist_find_mut(const clist* clist, cconstptr data, CCompareKeyFn cmp)
  * If you need mutation or expect the value to get mutated use
  * 'clist_find_mut' instead.
  */
-cconstptr
-clist_find(const clist* clist, cconstptr data, CCompareKeyFn cmp)
+cconstptr_t
+clist_find(const clist* clist, cconstptr_t data, CCompareKeyFn cmp)
 {
     return_val_if_fail(clist != NULL && cmp != NULL && data != NULL, NULL);
 
@@ -383,14 +400,14 @@ clist_free(clist* clist)
  * Returns NULL only if the allocation fails.
  */
 clist_node*
-node_new(cconstptr data)
+node_new(cconstptr_t data)
 {
     assert(data != NULL);
     clist_node* node = memc_malloc(clist_node);
     if(node != NULL) {
         node->next = NULL;
         node->prev = NULL;
-        node->data = (cptr) data;
+        node->data = (cptr_t) data;
     }
     return node;
 }
@@ -400,14 +417,14 @@ node_new(cconstptr data)
  * Frees the node returning the pointer
  * to the data stored in it.
  */
-cptr
+cptr_t
 node_free(clist_node* node)
 {
     assert(node != NULL);
-    cptr temp  = node->data;
-    node->next = NULL;
-    node->prev = NULL;
-    node->data = NULL;
+    cptr_t temp = node->data;
+    node->next  = NULL;
+    node->prev  = NULL;
+    node->data  = NULL;
     free(node);
     return temp;
 }
@@ -471,19 +488,25 @@ clist_cursor(clist* clist)
 {
     return_val_if_fail(clist != NULL, NULL);
 
-    ccursor* cursor = (ccursor*) malloc(sizeof(ccursor));
+    ccursor* cursor = memc_malloc(ccursor);
+
+#ifndef COL_MEMORY_CONSTRAINED
+    if(__builtin_expect(cursor != NULL, 1)) {
+#else
     if(cursor != NULL) {
+#endif
         cursor->clist = clist;
         cursor->node  = NULL;
         cursor->index = -1;
     }
+
     return cursor;
 }
 
 /*
- * Moves CListCursor to the next element
+ * Moves ccursor to the next element
  * in the list.
- * Does nothing if pointer to the CListCursor
+ * Does nothing if pointer to the ccursor
  * is NULL.
  */
 void
@@ -491,6 +514,7 @@ cursor_move_next(ccursor* cursor)
 {
     if(cursor != NULL) {
         clist_node* current;
+
         if((current = cursor->node) != NULL) {
 
             cursor->node = current->next;
@@ -498,7 +522,7 @@ cursor_move_next(ccursor* cursor)
             if(cursor->node != NULL)
                 cursor->index++;
             else
-                cursor->index = -1; // Index is None or in between the head and tail
+                cursor->index = -1; // Between the head and tail
 
         } else if(cursor->clist->len != 0) {
             cursor->node  = cursor->clist->head;
@@ -512,7 +536,7 @@ cursor_move_next(ccursor* cursor)
 /*
  * Moves CURSOR to the previous element
  * in the list.
- * Does nothing if pointer to the CListCursor
+ * Does nothing if pointer to the ccursor
  * is NULL.
  */
 void
@@ -520,13 +544,14 @@ cursor_move_prev(ccursor* cursor)
 {
     if(cursor != NULL) {
         clist_node* current;
+
         if((current = cursor->node) != NULL) {
             cursor->node = current->prev;
 
             if(cursor->node != NULL)
                 cursor->index--;
             else
-                cursor->index = -1; // Index is None or in between the head and tail
+                cursor->index = -1; // Between the head and tail
 
         } else if(cursor->clist->len != 0) {
             cursor->node  = cursor->clist->tail;
@@ -542,7 +567,7 @@ cursor_move_prev(ccursor* cursor)
  * If CURSOR is NULL or CURSOR is pointing
  * at NULL node, then it returns NULL.
  */
-cptr
+cptr_t
 cursor_current(ccursor* cursor)
 {
     return_val_if_fail(cursor != NULL, NULL);
@@ -554,7 +579,7 @@ cursor_current(ccursor* cursor)
  * Peeks at the next value and returns it.
  * Returns NULL if the value is NULL or CURSOR is NULL.
  */
-cptr
+cptr_t
 cursor_peek_next(ccursor* cursor)
 {
     return_val_if_fail(cursor != NULL, NULL);
@@ -569,12 +594,13 @@ cursor_peek_next(ccursor* cursor)
  * Peeks at the prev value and returns it.
  * Returns NULL if the value is NULL or CURSOR is NULL.
  */
-cptr
+cptr_t
 cursor_peek_prev(ccursor* cursor)
 {
     return_val_if_fail(cursor != NULL, NULL);
 
     clist_node* return_val;
+
     return_val = (cursor->node) ? cursor->node->prev : cursor->clist->tail;
 
     return (return_val) ? return_val->data : NULL;
@@ -601,8 +627,13 @@ cursor_split_before(ccursor* cursor)
     clist*      new_list = clist_new(cursor->clist->free_val_fn);
     clist*      temp;
 
-    if(new_list == NULL)
+#ifndef COL_MEMORY_CONSTRAINED
+    if(__builtin_expect(new_list == NULL, 0)) {
+#else
+    if(new_list == NULL) {
+#endif
         return NULL;
+    }
 
     if((current = cursor->node) != NULL) {
         if((prev = cursor->node->prev) != NULL) {
@@ -654,8 +685,13 @@ cursor_split_after(ccursor* cursor)
     clist*      new_list = clist_new(cursor->clist->free_val_fn);
     clist*      temp;
 
-    if(new_list == NULL)
+#ifndef COL_MEMORY_CONSTRAINED
+    if(__builtin_expect(new_list == NULL, 0)) {
+#else
+    if(new_list == NULL) {
+#endif
         return NULL;
+    }
 
     if((current = cursor->node) != NULL) {
         if((next = cursor->node->next) != NULL) {
@@ -731,6 +767,7 @@ cursor_splice_before(ccursor* cursor, clist** other_list)
     {
         clist_node*  current;
         unsigned int swapped = 0;
+
         if((current = cursor->node) != NULL) {
             clist_node* other_head = (*other_list)->head;
             clist_node* other_tail = (*other_list)->tail;

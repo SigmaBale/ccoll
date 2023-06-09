@@ -1,8 +1,7 @@
 /*
  * Note:
- * This is not the fastest implementation of
- * self balanced binary tree nor does it strive to be,
- * this is recursive approach to the avl tree data structure.
+ * This is not the fastest implementation of self balanced binary tree.
+ * This is recursive approach to the avl tree data structure.
  * However, it is possible that the implementation might
  * be rewritten with iterative approach.
  *
@@ -18,7 +17,7 @@
  * Operations that affect tree balance won't benefit from
  * the multithreading anyways, if the balance changes when
  * insertion '1' is done inserting then the conccurent insertion '2'
- * must start all the way from the root because tree might rebalance.
+ * must start all the way from the root because tree might have been rebalanced.
  */
 
 #define __COL_TREE_C_FILE__
@@ -27,9 +26,14 @@
 #define __COL_C_FILE__
 #include "cerror.h"
 #undef __COL_C_FILE__
+#define __COL_SRC_FILE__
+#include "citer.h"
+#undef __COL_SRC_FILE__
 
 #include <assert.h>
 #include <memc.h>
+#include <memory.h>
+#include <stdatomic.h>
 #include <stdbool.h>
 
 /*
@@ -56,11 +60,17 @@
  * inside nested recursion.
  */
 
-typedef struct {
-    cuint removed  : 1;
-    cuint inserted : 1;
-    cuint replaced : 1;
-} cflags;
+typedef u_char byte;
+
+#ifndef COL_BYTE
+#define COL_BYTE (byte) 0
+#endif
+
+typedef enum {
+    REMOVED  = 1 << 0,
+    INSERTED = 1 << 1,
+    REPLACED = 1 << 2,
+} _opflags;
 
 /*
  * Core private structure that represents the Node (key)
@@ -76,15 +86,16 @@ typedef struct {
  * If so then the tree rebalances itself until the balance factor
  * of all nodes is one of the values of the given set {-1, 0, 1}
  */
-typedef struct _cnode {
-    cptr  key;
-    cptr  value;
-    cuint height;
-    int   balance;
+struct ctree_node {
+    cptr_t key;
+    cptr_t value;
+    uint   height;
+    int    balance;
 
-    struct _cnode* right;
-    struct _cnode* left;
-} cnode;
+    struct ctree_node* right;
+    struct ctree_node* left;
+    struct ctree_node* parent;
+};
 
 /*
  * CTree is AVL tree (self-balancing binary search tree).
@@ -104,42 +115,18 @@ typedef struct _cnode {
  * replaced or key gets removed, the value won't be freed unless
  * user provided 'CFreeValueFn'.
  */
-struct _ctree {
-    cnode*  root;
-    cflags* flags;
-    cuint   size;
+struct ctree {
+    ctree_node* root;
 
     CCompareKeyFn compare_key_fn;
     CFreeKeyFn    free_key_fn;
     CFreeValueFn  free_value_fn;
+    CClone        clone_key_fn;
+    CClone        clone_value_fn;
+
+    atomic_uint size;
+    byte        flags;
 };
-
-/*
- * Flags constructor
- */
-static cflags*
-flags_new(void)
-{
-    cflags* flags = memc_malloc(cflags);
-    if(flags != NULL) {
-        flags->removed  = 0;
-        flags->inserted = 0;
-        flags->replaced = 0;
-    }
-    return flags;
-}
-
-/*
- * Flags destructor
- */
-static void
-flags_free(cflags* flags)
-{
-    flags->inserted = 0;
-    flags->removed  = 0;
-    flags->replaced = 0;
-    free(flags);
-}
 
 /*
  * CTree constructor
@@ -152,29 +139,34 @@ flags_free(cflags* flags)
 ctree*
 ctree_new(CCompareKeyFn compare_key_fn,
           CFreeKeyFn    free_key_fn,
-          CFreeValueFn  free_value_fn)
+          CFreeValueFn  free_value_fn,
+          CClone        clone_key_fn,
+          CClone        clone_value_fn)
 {
     ctree* tree = memc_malloc(ctree);
-    if(tree != NULL) {
-        if((tree->compare_key_fn = compare_key_fn) == NULL
-           || (tree->flags = flags_new()) == NULL)
-        {
-            if(tree->compare_key_fn == NULL) {
-                COL_ERROR_INVALID_COMPARISON_FUNCTION("ctree");
-                free(tree);
-            } else
-                COL_ERROR_OUT_OF_MEMORY("ctree");
 
-            return NULL;
-        }
-        tree->free_key_fn   = free_key_fn;
-        tree->free_value_fn = free_value_fn;
-        tree->root          = NULL;
-        tree->size          = 0;
+#ifndef COL_MEMORY_CONSTRAINED
+    if(__builtin_expect(tree == NULL, 0)) {
+#else
+    if(tree != NULL) {
+#endif
+        COL_ALLOC_ERROR;
+        return NULL;
     }
 
-    if(tree == NULL)
-        COL_ERROR_OUT_OF_MEMORY("ctree");
+    if((tree->compare_key_fn = compare_key_fn) == NULL) {
+        COL_INVALID_CMPFN_ERROR;
+        free(tree);
+        return NULL;
+    }
+
+    tree->clone_key_fn   = clone_key_fn;
+    tree->clone_value_fn = clone_value_fn;
+    tree->free_key_fn    = free_key_fn;
+    tree->free_value_fn  = free_value_fn;
+    tree->root           = NULL;
+    tree->size           = 0;
+    tree->flags          = COL_BYTE;
 
     return tree;
 }
@@ -182,24 +174,35 @@ ctree_new(CCompareKeyFn compare_key_fn,
 /*
  * CTreeNode constructor
  */
-static cnode*
-ctreenode_new(cptr key, cptr value)
+static ctree_node*
+_ctreenode_new(cptr_t key, cptr_t value, ctree_node* parent)
 {
-    cnode* node;
+    ctree_node* node;
+
+#ifndef COL_MEMORY_CONSTRAINED
+    if(__builtin_expect((node = memc_malloc(ctree_node)) == NULL, 0) || (node->key = key) == NULL) {
+#else
     if((node = memc_malloc(cnode)) == NULL || (node->key = key) == NULL) {
+#endif
+#ifndef COL_MEMORY_CONSTRAINED
+        if(__builtin_expect(node == NULL, 0)) {
+#else
         if(node == NULL) {
-            COL_ERROR_OUT_OF_MEMORY("ctree");
+#endif
+            COL_ALLOC_ERROR;
         } else {
-            COL_ERROR_INVALID_KEY("ctree", key);
+            COL_INVALID_KEY_ERROR;
             free(node);
         }
         return NULL;
     }
+
     node->value   = value;
     node->height  = 0;
     node->balance = 0;
     node->right   = NULL;
     node->left    = NULL;
+    node->parent  = parent;
 
     return node;
 }
@@ -207,16 +210,21 @@ ctreenode_new(cptr key, cptr value)
 /*
  * CTreeNode destructor
  */
-static void
-ctreenode_free(cnode* node)
+void
+ctree_node_drop(ctree_node** nodep)
 {
-    node->height  = 0;
-    node->balance = 0;
-    node->right   = NULL;
-    node->left    = NULL;
-    node->key     = NULL;
-    node->value   = NULL;
-    free(node);
+    ctree_node* node;
+    if(nodep != NULL && (node = *nodep) != NULL) {
+        node->height  = 0;
+        node->balance = 0;
+        node->right   = NULL;
+        node->left    = NULL;
+        node->key     = NULL;
+        node->value   = NULL;
+        node->parent  = NULL;
+        *nodep        = NULL;
+        free(node);
+    }
 }
 
 /*
@@ -224,11 +232,11 @@ ctreenode_free(cnode* node)
  * Recursively frees all the nodes
  */
 static void
-ctreenode_freeall(ctree* tree, cnode* node)
+_ctreenode_freeall(ctree* tree, ctree_node* node)
 {
     if(node != NULL) {
-        ctreenode_freeall(tree, node->left);
-        ctreenode_freeall(tree, node->right);
+        _ctreenode_freeall(tree, node->left);
+        _ctreenode_freeall(tree, node->right);
 
         if(tree->free_key_fn)
             tree->free_key_fn(node->key);
@@ -237,30 +245,7 @@ ctreenode_freeall(ctree* tree, cnode* node)
             tree->free_value_fn(node->value);
 
         tree->size--;
-        ctreenode_free(node);
-    }
-}
-
-/*
- * CTree 'destructor', cleans up all the nodes
- * and itself.
- * Note: If the user didn't pass his own
- * 'free_key_fn' on tree creation then it is
- * the users responsibility to clean up the
- * inserted keys.
- * */
-void
-ctree_free(ctree* tree)
-{
-    assert(tree != NULL);
-    if(tree != NULL) {
-        ctreenode_freeall(tree, tree->root);
-        flags_free(tree->flags);
-        tree->compare_key_fn = NULL;
-        tree->free_key_fn    = NULL;
-        tree->free_value_fn  = NULL;
-        assert(tree->size == 0);
-        free(tree);
+        ctree_node_drop(&node);
     }
 }
 
@@ -268,7 +253,7 @@ ctree_free(ctree* tree)
  * Updates the CTreeNode height and balance factor
  */
 static void
-ctreenode_update(cnode* node)
+_ctreenode_update(ctree_node* node)
 {
     int left      = (node->left != NULL) ? (int) node->left->height : -1;
     int right     = (node->right != NULL) ? (int) node->right->height : -1;
@@ -280,14 +265,14 @@ ctreenode_update(cnode* node)
  * Rotation function, performs right rotation, after rotation
  * it updates the pivot and root node (height and balance factor)
  */
-static cnode*
-ctreenode_rotate_right(cnode* node)
+static ctree_node*
+_ctreenode_rotate_right(ctree_node* node)
 {
-    cnode* new_root = node->left;
-    node->left      = new_root->right;
-    new_root->right = node;
-    ctreenode_update(node);
-    ctreenode_update(new_root);
+    ctree_node* new_root = node->left;
+    node->left           = new_root->right;
+    new_root->right      = node;
+    _ctreenode_update(node);
+    _ctreenode_update(new_root);
     return new_root;
 }
 
@@ -295,14 +280,14 @@ ctreenode_rotate_right(cnode* node)
  * Rotation function, performs left rotation, after rotation
  * it updates the pivot and root node (height and balance factor)
  */
-static cnode*
-ctreenode_rotate_left(cnode* node)
+static ctree_node*
+_ctreenode_rotate_left(ctree_node* node)
 {
-    cnode* new_root = node->right;
-    node->right     = new_root->left;
-    new_root->left  = node;
-    ctreenode_update(node);
-    ctreenode_update(new_root);
+    ctree_node* new_root = node->right;
+    node->right          = new_root->left;
+    new_root->left       = node;
+    _ctreenode_update(node);
+    _ctreenode_update(new_root);
     return new_root;
 }
 
@@ -311,11 +296,11 @@ ctreenode_rotate_left(cnode* node)
  * child of the root by applying the right rotation on it, then rotates the root
  * and pivot (new right child) by applying left rotation
  */
-static cnode*
-ctreenode_rotate_right_left(cnode* node)
+static ctree_node*
+_ctreenode_rotate_right_left(ctree_node* node)
 {
-    node->right = ctreenode_rotate_right(node->right);
-    return ctreenode_rotate_left(node);
+    node->right = _ctreenode_rotate_right(node->right);
+    return _ctreenode_rotate_left(node);
 }
 
 /*
@@ -323,11 +308,11 @@ ctreenode_rotate_right_left(cnode* node)
  * child of the root by applying the left rotation on it, then rotates the root
  * and pivot (new left child) by applying right rotation
  */
-static cnode*
-ctreenode_rotate_left_right(cnode* node)
+static ctree_node*
+_ctreenode_rotate_left_right(ctree_node* node)
 {
-    node->left = ctreenode_rotate_left(node->left);
-    return ctreenode_rotate_right(node);
+    node->left = _ctreenode_rotate_left(node->left);
+    return _ctreenode_rotate_right(node);
 }
 
 /*
@@ -335,19 +320,19 @@ ctreenode_rotate_left_right(cnode* node)
  * if the node balance factor is not part of the
  * {-1, 0, 1} set.
  */
-static cnode*
-ctreenode_rebalance(cnode* node)
+static ctree_node*
+_ctreenode_rebalance(ctree_node* node)
 {
     if(node->balance < -1) {
         // AVL tree invariant must not be broken
         assert(node->balance == -2);
-        return (node->left->balance <= 0) ? ctreenode_rotate_right(node)
-                                          : ctreenode_rotate_left_right(node);
+        return (node->left->balance <= 0) ? _ctreenode_rotate_right(node)
+                                          : _ctreenode_rotate_left_right(node);
     } else if(node->balance > 1) {
         // AVL tree invariant must not be broken
         assert(node->balance == 2);
-        return (node->right->balance >= 0) ? ctreenode_rotate_left(node)
-                                           : ctreenode_rotate_right_left(node);
+        return (node->right->balance >= 0) ? _ctreenode_rotate_left(node)
+                                           : _ctreenode_rotate_right_left(node);
     }
     return node;
 }
@@ -356,8 +341,8 @@ ctreenode_rebalance(cnode* node)
  * Finds the max key value in the left subtree
  * of the passed in 'CTreeNode'
  */
-static cnode*
-ctreenode_find_right(cnode* node)
+static ctree_node*
+_ctreenode_find_right(ctree_node* node)
 {
     while(node->left != NULL)
         node = node->left;
@@ -369,8 +354,8 @@ ctreenode_find_right(cnode* node)
  * Finds the min key value in the right subtree
  * of the passed in 'CTreeNode'
  */
-static cnode*
-ctreenode_find_left(cnode* node)
+static ctree_node*
+_ctreenode_find_left(ctree_node* node)
 {
     while(node->right != NULL)
         node = node->right;
@@ -383,25 +368,36 @@ ctreenode_find_left(cnode* node)
  * It updates the node parameters and does the
  * recursive tree rebalancing.
  */
-static cnode*
-ctreenode_insert(ctree* tree, cnode* node, cptr key, cptr value, bool replace)
+static ctree_node*
+_ctreenode_insert(ctree*      tree,
+                  ctree_node* parent,
+                  ctree_node* node,
+                  cptr_t      key,
+                  cptr_t      value,
+                  bool        replace)
 {
     int cmp;
+
+#ifndef COL_MEMORY_CONSTRAINED
+    if(node == NULL && __builtin_expect((node = _ctreenode_new(key, value, parent)) != NULL, 1)) {
+#else
     if(node == NULL && (node = ctreenode_new(key, value)) != NULL) {
+#endif
         tree->size++;
-        tree->flags->inserted = 1;
+        tree->flags |= INSERTED;
     } else if((cmp = tree->compare_key_fn(node->key, key)) > 0) {
-        node->left = ctreenode_insert(tree, node->left, key, value, replace);
+        node->left = _ctreenode_insert(tree, node, node->left, key, value, replace);
     } else if(cmp < 0) {
-        node->right = ctreenode_insert(tree, node->right, key, value, replace);
+        node->right = _ctreenode_insert(tree, node, node->right, key, value, replace);
     } else {
+
         if(tree->free_value_fn)
             tree->free_value_fn(node->value);
 
         node->value = value;
 
         if(replace) {
-            tree->flags->replaced = 1;
+            tree->flags |= REPLACED;
 
             if(tree->free_key_fn)
                 tree->free_key_fn(node->key);
@@ -410,9 +406,9 @@ ctreenode_insert(ctree* tree, cnode* node, cptr key, cptr value, bool replace)
         }
     }
 
-    if(tree->flags->inserted) {
-        ctreenode_update(node);
-        return ctreenode_rebalance(node);
+    if(tree->flags & INSERTED) {
+        _ctreenode_update(node);
+        return _ctreenode_rebalance(node);
     }
 
     return node;
@@ -427,33 +423,33 @@ ctreenode_insert(ctree* tree, cnode* node, cptr key, cptr value, bool replace)
  * If either one or both of the functions are not present,
  * then the user is responsible for freeing the value and/or key.
  */
-static cnode*
-ctreenode_remove(ctree* tree, cnode* node, cptr key)
+static ctree_node*
+_ctreenode_remove(ctree* tree, ctree_node* node, cptr_t key, bool return_ele)
 {
     if(node == NULL)
-        return node;
+        return NULL;
 
     int cmp = tree->compare_key_fn(node->key, key);
 
     if(cmp > 0) {
-        node->left = ctreenode_remove(tree, node->left, key);
+        node->left = _ctreenode_remove(tree, node->left, key, return_ele);
     } else if(cmp < 0) {
-        node->right = ctreenode_remove(tree, node->right, key);
-    } else if(cmp == 0) {
-        cnode* temp;
+        node->right = _ctreenode_remove(tree, node->right, key, return_ele);
+    } else {
+        ctree_node* temp;
 
         if(node->right == NULL || node->left == NULL) {
             temp = (node->right != NULL) ? node->right : node->left;
 
             // If we freed the value in some recursion call
             // before this one, then don't try to free again!
-            if(!tree->flags->removed) {
+            if(!(tree->flags & REMOVED)) {
                 (tree->free_key_fn) ? tree->free_key_fn(node->key) : 0;
                 (tree->free_value_fn) ? tree->free_value_fn(node->value) : 0;
-                tree->flags->removed = 1;
+                tree->flags |= REMOVED;
             }
 
-            ctreenode_free(node);
+            ctree_node_drop(&node);
 
             tree->size--;
 
@@ -472,26 +468,26 @@ ctreenode_remove(ctree* tree, cnode* node, cptr key)
             // Set the flag so we can check in the upper case
             // if the flag is set, so we don't free the value
             // that will get assigned to this current node
-            tree->flags->removed = 1;
+            tree->flags |= REMOVED;
 
             if(node->left->height > node->right->height) {
-                temp        = ctreenode_find_left(node->left);
+                temp        = _ctreenode_find_left(node->left);
                 node->key   = temp->key;
                 node->value = temp->value;
-                node->left  = ctreenode_remove(tree, node->left, node->key);
+                node->left  = _ctreenode_remove(tree, node->left, node->key, return_ele);
             } else {
-                temp        = ctreenode_find_right(node->right);
+                temp        = _ctreenode_find_right(node->right);
                 node->key   = temp->key;
                 node->value = temp->value;
-                node->right = ctreenode_remove(tree, node->right, node->key);
+                node->right = _ctreenode_remove(tree, node->right, node->key, return_ele);
             }
         }
     }
 
     // During traceback only update if we removed the node
-    if(tree->flags->removed) {
-        ctreenode_update(node);
-        return ctreenode_rebalance(node);
+    if(tree->flags & REMOVED) {
+        _ctreenode_update(node);
+        return _ctreenode_rebalance(node);
     }
 
     return node;
@@ -508,14 +504,14 @@ ctreenode_remove(ctree* tree, cnode* node, cptr key)
  * If the key was not found then the key is inserted
  */
 bool
-ctree_insert(ctree* tree, cptr key, cptr value)
+ctree_insert(ctree* tree, cptr_t key, cptr_t value)
 {
     return_val_if_fail(tree != NULL, false);
 
-    tree->root = ctreenode_insert(tree, tree->root, key, value, false);
+    tree->root = _ctreenode_insert(tree, NULL, tree->root, key, value, false);
 
-    if(tree->flags->inserted) {
-        tree->flags->inserted = 0;
+    if(tree->flags & INSERTED) {
+        tree->flags &= ~(COL_BYTE | INSERTED);
         return true;
     }
 
@@ -532,14 +528,14 @@ ctree_insert(ctree* tree, cptr key, cptr value)
  * 'CFreeKeyFn' is present.
  */
 bool
-ctree_replace(ctree* tree, cptr key, cptr value)
+ctree_replace(ctree* tree, cptr_t key, cptr_t value)
 {
     return_val_if_fail(tree != NULL, false);
 
-    tree->root = ctreenode_insert(tree, tree->root, key, value, true);
+    tree->root = _ctreenode_insert(tree, NULL, tree->root, key, value, true);
 
-    if(tree->flags->replaced) {
-        tree->flags->replaced = 0;
+    if(tree->flags & REPLACED) {
+        tree->flags &= ~(COL_BYTE | REPLACED);
         return true;
     }
 
@@ -555,14 +551,14 @@ ctree_replace(ctree* tree, cptr key, cptr value)
  * returns false.
  */
 bool
-ctree_remove(ctree* tree, cptr key)
+ctree_remove(ctree* tree, cptr_t key, bool return_ele)
 {
     return_val_if_fail((tree != NULL && key != NULL), false);
 
-    tree->root = ctreenode_remove(tree, tree->root, key);
+    tree->root = _ctreenode_remove(tree, tree->root, key, return_ele);
 
-    if(tree->flags->removed) {
-        tree->flags->removed = 0;
+    if(tree->flags & REMOVED) {
+        tree->flags &= ~(COL_BYTE | REMOVED);
         return true;
     } else
         return false;
@@ -573,13 +569,13 @@ ctree_remove(ctree* tree, cptr key)
  * Returns NULL if key was not found or the pointer
  * to the key if it was found.
  */
-cptr
-ctreenode_find(ctree* tree, cptr key)
+cptr_t
+_ctreenode_find(ctree* tree, cptr_t key)
 {
     return_val_if_fail(tree != NULL, NULL);
 
-    int    cmp;
-    cnode* current = tree->root;
+    int         cmp;
+    ctree_node* current = tree->root;
 
     while(current != NULL) {
         if((cmp = tree->compare_key_fn(current->key, key)) == 0) {
@@ -597,14 +593,14 @@ ctreenode_find(ctree* tree, cptr key)
  * Returns pointer to the value of the key/value pair.
  * Returns NULL if key is not inside the tree.
  */
-cptr
-ctree_entry(ctree* tree, cptr key)
+cptr_t
+ctree_entry(ctree* tree, cptr_t key)
 {
     return_val_if_fail(tree != NULL, NULL);
 
-    cnode* entry;
+    ctree_node* entry;
 
-    if((entry = ctreenode_find(tree, key)) != NULL)
+    if((entry = _ctreenode_find(tree, key)) != NULL)
         return entry->value;
 
     return NULL;
@@ -614,14 +610,14 @@ ctree_entry(ctree* tree, cptr key)
  * Returns pointer to the key of the key/value pair.
  * Returns NULL if key is not inside the tree.
  */
-cptr
-ctree_key(ctree* tree, cptr key)
+cptr_t
+ctree_key(ctree* tree, cptr_t key)
 {
     return_val_if_fail(tree != NULL, NULL);
 
-    cnode* entry;
+    ctree_node* entry;
 
-    if((entry = ctreenode_find(tree, key)) != NULL)
+    if((entry = _ctreenode_find(tree, key)) != NULL)
         return entry->key;
 
     return NULL;
@@ -630,35 +626,610 @@ ctree_key(ctree* tree, cptr key)
 /*
  * Returns the total node count in the CTree.
  */
-cuint
+uint
 ctree_size(ctree* tree)
 {
     return tree->size;
 }
 
 /*
- * Returns the total size of the CTree
- * (size of all nodes) in bytes.
+ * Returns the total size of the CTree (size of all nodes) in bytes.
+ * This represents only the size of nodes not the actual allocation size of
+ * key and value pairs (if they are malloc'ed).
  */
 size_t
 ctree_size_bytes(ctree* tree)
 {
-    return tree->size * sizeof(cnode);
+    return tree->size * sizeof(ctree_node);
 }
 
-// Debug
+/*
+ * Drops the 'ctree' freeing the wrapper, but the nodes are not freed.
+ * Pointer to the wrapper also gets nulled.
+ */
 void
-print_node(cnode* node)
+ctree_drop(ctree** treep, bool free_tree)
 {
-    if(node != NULL) {
-        print_node(node->left);
-        print_node(node->right);
+    ctree* tree;
+    if(treep != NULL && (tree = *treep) != NULL) {
+        tree->root  = NULL;
+        tree->size  = 0;
+        tree->flags = COL_BYTE;
+        *treep      = NULL;
+        if(free_tree)
+            free(tree);
     }
 }
 
-// Debug
-void
-print_tree(ctree* tree)
+/*
+ * Finds the smallest node given the root 'node'.
+ */
+static ctree_node*
+_ctree_min(const ctree_node* node)
 {
-    print_node(tree->root);
+    return_val_if_fail(node != NULL, NULL);
+
+    while(node->left != NULL)
+        node = node->left;
+
+    return (ctree_node*) node;
+}
+
+/*
+ * Finds the largest node given the root 'node'.
+ */
+static ctree_node*
+_ctree_max(const ctree_node* node)
+{
+    return_val_if_fail(node != NULL, NULL);
+
+    while(node->right != NULL)
+        node = node->right;
+
+    return (ctree_node*) node;
+}
+
+//
+//
+//
+//
+/****************************************************************************/
+/*                        BI-DIRECTIONAL ITERATORS                          */
+/****************************************************************************/
+
+/*
+ * Private enum used in simple algorithm for traversing the tree.
+ *
+ * 'UP' is set each time if starting from 'start' (front) when 'node' is part
+ * of the right subtree and the next successor is its 'parent' node.
+ * 'UP' is also set each time when starting from 'end' (back) when 'node' is
+ * part of the left subtree and the next successor is its 'parent' node.
+ * This prevents cycles.
+ *
+ * 'RESET' is set in every other case, for example if we are iterating from
+ * start (front) and the node was part of the left subtree and its successor
+ * is its parent.
+ */
+typedef enum _ctree_iter_state {
+    UP,
+    RESET,
+} _ctree_iter_state;
+
+/*
+ * Check function definition below for info.
+ */
+static ctree_node*
+_ctree_node_next(const ctree_node* node, _ctree_iter_state* state, CCompareKeyFn key_cmp_fn);
+
+/*
+ * Check function definition below for info.
+ */
+static ctree_node*
+_ctree_node_prev(const ctree_node* node, _ctree_iter_state* state, CCompareKeyFn key_cmp_fn);
+
+/*
+ * This private struct holds iteration state for both the 'start' and 'end'.
+ * Meaning that calling 'ctree_iter_next' and 'ctree_iter_next_back' won't mix
+ * their states together instead they each have their own state.
+ */
+typedef struct {
+    _ctree_iter_state start;
+    _ctree_iter_state end;
+} _ctree_iter_states;
+
+/*
+ * Default initializator of '_ctree_iter_states' struct.
+ * Both states are set to 'RESET' for obvious reasons.
+ */
+_ctree_iter_states
+_ctree_iter_states_default(void)
+{
+    return (_ctree_iter_states) {
+        .start = RESET,
+        .end   = RESET,
+    };
+}
+
+/*
+ * Bi-directional Non-consuming iterator.
+ * Nodes having 'parent' member is what allows this iterator to have O(1) space
+ * complexity and O(1) time complexity when fetching next node.
+ *
+ * Note:
+ * 'CCompareKeyFn' is also part of the algorithm for traversing our iterator,
+ * it is used in case where we compare our nodes key with the parents right node key,
+ * to determine if our node is right child of a parent node (in case we are traversing from
+ * start) so that the 'UP' state can be set (or not).
+ */
+struct ctree_iter {
+    _c_iter            iter;
+    ulong              size;
+    CCompareKeyFn      key_cmp_fn;
+    _ctree_iter_states states;
+};
+
+/*
+ * 'ctree_iter' constructor, the returned iterator is stack allocated as are all of
+ * its members.
+ *
+ * It is fine to stack allocate it because its lifetime does not depend on any
+ * underlying node.
+ * This iterator is usefull for reading the node key/value pairs and/or mutating them.
+ *
+ * Warning:
+ * Freeing the returned node is Undefined Behaviour.
+ */
+ctree_iter
+ctree_iter_new(ctree* tree)
+{
+    return (ctree_iter) {
+        .states     = _ctree_iter_states_default(),
+        .size       = tree->size,
+        .key_cmp_fn = tree->compare_key_fn,
+        .iter       = _c_iter_new(_ctree_min(tree->root), _ctree_max(tree->root)),
+    };
+}
+
+/*
+ * Returns the next node from the front of the iterator in order.
+ * Returns NULL if 'iter' is NULL or if iterator is exhausted.
+ */
+ctree_node*
+ctree_iter_next(ctree_iter* iter)
+{
+    return_val_if_fail(iter != NULL, NULL);
+
+    ctree_node* retval
+        = _ctree_node_next(iter->iter.vals.start, &iter->states.start, iter->key_cmp_fn);
+
+    if(retval != NULL)
+        iter->size--;
+
+    return retval;
+}
+
+/*
+ * Returns the next node from the back of the iterator in order (reverse).
+ * Returns NULL if 'iter' is NULL or if iterator is exhausted.
+ */
+ctree_node*
+ctree_iter_next_back(ctree_iter* iter)
+{
+    return_val_if_fail(iter != NULL, NULL);
+
+    ctree_node* retval = _ctree_node_prev(iter->iter.vals.end, &iter->states.end, iter->key_cmp_fn);
+
+    if(retval != NULL)
+        iter->size--;
+
+    return retval;
+}
+
+/*
+ * Finds the next node in order.
+ *
+ * Uses the mentioned algorithm described above under the state enum.
+ * Ignoring the algorithm and explaining it roughly, it returns minimum value
+ * of the right subtree, if right child node is NULL then it returns parent node
+ * (there are edge cases which algorithm take care of).
+ */
+ctree_node*
+_ctree_node_next(const ctree_node* node, _ctree_iter_state* state, CCompareKeyFn key_cmp_fn)
+{
+    return_val_if_fail(node != NULL, NULL);
+
+    if(node->right == NULL || *state == UP) {
+
+        ctree_node* parent;
+
+        if((parent = node->parent) && parent->right
+           && key_cmp_fn(parent->right->key, node->key) == 0)
+        {
+            *state = UP;
+        } else {
+            *state = RESET;
+        }
+
+        return node->parent;
+
+    } else {
+        *state = RESET;
+        return _ctree_min(node->right);
+    }
+}
+
+/*
+ * Finds the previous node in order.
+ *
+ * Exactly same as the '_ctree_node_next' except opposite side.
+ */
+ctree_node*
+_ctree_node_prev(const ctree_node* node, _ctree_iter_state* state, CCompareKeyFn key_cmp_fn)
+{
+    return_val_if_fail(node != NULL, NULL);
+
+    if(node->left == NULL || *state == UP) {
+
+        ctree_node* parent;
+
+        if((parent = node->parent) && parent->left && key_cmp_fn(parent->left->key, node->key) == 0)
+        {
+            *state = UP;
+        } else {
+            *state = RESET;
+        }
+
+        return node->parent;
+
+    } else {
+        *state = RESET;
+        return _ctree_max(node->left);
+    }
+}
+
+/*
+ * 'Drains' the 'size' of nodes from the front of the 'iterator'.
+ * This basically advances the iterator 'size' amount forward.
+ * If 'size' is bigger than the 'iterator' size, error message is printed to stderr
+ * and function returns without trying to drain the iterator.
+ */
+void
+ctree_iter_drain_front(ctree_iter* iterator, ulong size)
+{
+    if(iterator == NULL)
+        return;
+
+    if(size > iterator->size) {
+        COL_SIZE_OUT_OF_BOUNDS;
+        return;
+    }
+
+    while(size--) {
+        iterator->iter.vals.start = _ctree_node_next(iterator->iter.vals.start,
+                                                     &iterator->states.start,
+                                                     iterator->key_cmp_fn);
+        iterator->size--;
+    }
+}
+
+/*
+ * 'Drains' the 'size' of nodes from the back of the 'iterator'.
+ * This basically advances the iterator 'size' amount forward.
+ * If 'size' is bigger than the 'iterator' size, error message is printed to stderr
+ * and function returns without trying to drain the iterator.
+ */
+void
+ctree_iter_drain_back(ctree_iter* iterator, ulong amount)
+{
+    if(iterator == NULL)
+        return;
+
+    if(amount > iterator->size) {
+        COL_SIZE_OUT_OF_BOUNDS;
+        return;
+    }
+
+    while(amount--) {
+        iterator->iter.vals.end = _ctree_node_prev(iterator->iter.vals.end,
+                                                   &iterator->states.end,
+                                                   iterator->key_cmp_fn);
+        iterator->size--;
+    }
+}
+
+/*
+ * Bi-directional Consuming Iterator.
+ *
+ * Constructing this Iterator consumes the 'ctree' meaning it drops the
+ * 'ctree' wrapper in order to construct this Iterator.
+ *
+ * All the function pointers are transfered and the Iterator becomes the
+ * 'owner' of the underlying nodes ('ctree_iterator' outlives all the nodes it holds).
+ *
+ * Each call to the 'ctree_iterator_next' or 'ctree_iterator_next_back' returns next
+ * node in order or previous.
+ * Returned node is 'cloned' meaning it first gets shallow copied then the iterator
+ * checks if the user supplied the 'CClone' functions when constructing the tree and
+ * it applies the 'clone_key_fn' and 'clone_val_fn' if present (not NULL).
+ * This then either returns a shallow copy of the node, a shallow copy + cloned key or
+ * a shallow copy + cloned key + cloned value, returning the complete clone of the node.
+ * Of course user is responsible for soundness of the cloning functions since he provides
+ * them.
+ *
+ * Old node that the returned node gets cloned from is dropped and the functions
+ * 'free_key_fn' and 'free_val_fn' are applied if present (not NULL).
+ * Both the 'free_key_fn' and 'free_value_fn' are provided when constructing the 'ctree'.
+ *
+ * This iterator along with the non-consuming one can be iterated from any direction
+ * at the same time, iterator will make sure to stop when both ends meet.
+ */
+struct ctree_iterator {
+    ulong              size;
+    _c_iter            _iter;
+    _ctree_iter_states states;
+
+    CClone        clone_key_fn;
+    CClone        clone_val_fn;
+    CFreeKeyFn    free_key_fn;
+    CFreeValueFn  free_val_fn;
+    CCompareKeyFn cmp_key_fn;
+};
+
+/*
+ * 'ctree_iterator_new' constructor.
+ * This function consumes the 'ctree', somehow modifying or reading
+ * from the 'ctree' is Undefined Behaviour.
+ *
+ * As explained above the double pointer to 'ctree' is provided in order to
+ * drop the 'ctree' and null the underlying pointer to it.
+ */
+ctree_iterator*
+ctree_iterator_new(ctree** treep)
+{
+    ctree* tree;
+    return_val_if_fail(treep != NULL && (tree = *treep) != NULL, NULL);
+
+    ctree_iterator* iterator = memc_malloc(ctree_iterator);
+
+#ifndef COL_MEMORY_CONSTRAINED
+    if(__builtin_expect(iterator == NULL, 0)) {
+#else
+    if(iterator == NULL) {
+#endif
+        COL_ALLOC_ERROR;
+        return NULL;
+    }
+
+    ctree_node* root = tree->root;
+
+    iterator->size         = tree->size;
+    iterator->states       = _ctree_iter_states_default();
+    iterator->_iter        = _c_iter_new(_ctree_min(root), _ctree_max(root));
+    iterator->clone_key_fn = tree->clone_key_fn;
+    iterator->clone_val_fn = tree->clone_value_fn;
+    iterator->free_key_fn  = tree->free_key_fn;
+    iterator->free_val_fn  = tree->free_value_fn;
+    iterator->cmp_key_fn   = tree->compare_key_fn;
+
+    ctree_drop(treep, true);
+
+    return iterator;
+}
+
+/*
+ * Clones the 'node' by first doing shallow copy and then it applies 'clone_key_fn'
+ * and/or 'clone_val_fn' if not NULL.
+ * 'node' gets cloned into 'out'.
+ */
+void
+_ctree_node_clone(ctree_node* node, CClone clone_key_fn, CClone clone_val_fn, ctree_node* out)
+{
+    memcpy(out, node, sizeof(ctree_node));
+
+    if(clone_key_fn)
+        out->key = clone_key_fn(node->key);
+    if(clone_val_fn)
+        out->value = clone_val_fn(node->value);
+}
+
+/*
+ * Internal helper function that clones the current node in the direction
+ * iterator is being traversed and also performs the free functions on the
+ * original node.
+ */
+ctree_node*
+_ctree_iterator_clone_current_and_free(ctree_iterator* iterator, cptr_t current)
+{
+    ctree_node* temp   = current;
+    ctree_node* retval = memc_malloc(ctree_node);
+
+#ifndef COL_MEMORY_CONSTRAINED
+    if(__builtin_expect(retval == NULL, 0)) {
+#else
+    if(retval == NULL) {
+#endif
+        COL_ALLOC_ERROR;
+        return NULL;
+    }
+
+    _ctree_node_clone(temp, iterator->clone_key_fn, iterator->clone_val_fn, retval);
+
+    if(iterator->free_key_fn)
+        iterator->free_key_fn(temp->key);
+    if(iterator->free_val_fn)
+        iterator->free_val_fn(temp->value);
+
+    return retval;
+}
+
+/*
+ * Traverses the iterator from the 'start' (front) fetching the next node.
+ * This performs the deep copy of node and the dropping of the original one.
+ * Returns the node or NULL if iterator is exhausted or if 'iterator' is NULL.
+ */
+ctree_node*
+ctree_iterator_next(ctree_iterator* iterator)
+{
+    return_val_if_fail(iterator != NULL && iterator->_iter.vals.start != NULL, NULL);
+
+    ctree_node* retval
+        = _ctree_iterator_clone_current_and_free(iterator, iterator->_iter.vals.start);
+
+    ctree_node* temp = iterator->_iter.vals.start;
+
+    if(temp == iterator->_iter.vals.end) {
+        iterator->_iter.vals.start = NULL;
+        iterator->_iter.vals.end   = NULL;
+    } else
+        iterator->_iter.vals.start
+            = _ctree_node_next(temp, &iterator->states.start, iterator->cmp_key_fn);
+
+    ctree_node_drop(&temp);
+
+    return retval;
+}
+
+/*
+ * Traverses the iterator from the 'end' (back) fetching the previous node.
+ * This performs the deep copy of node and the dropping of the original one.
+ * Returns the node or NULL if iterator is exhausted or if 'iterator' is NULL.
+ */
+ctree_node*
+ctree_iterator_next_back(ctree_iterator* iterator)
+{
+    return_val_if_fail(iterator != NULL && iterator->_iter.vals.end != NULL, NULL);
+
+    ctree_node* retval = _ctree_iterator_clone_current_and_free(iterator, iterator->_iter.vals.end);
+    ctree_node* temp   = iterator->_iter.vals.end;
+
+    if(temp == iterator->_iter.vals.start) {
+        iterator->_iter.vals.end   = NULL;
+        iterator->_iter.vals.start = NULL;
+    } else
+        iterator->_iter.vals.end
+            = _ctree_node_prev(temp, &iterator->states.end, iterator->cmp_key_fn);
+
+    ctree_node_drop(&temp);
+
+    return retval;
+}
+
+void
+ctree_iterator_drain_front(ctree_iterator* iterator, ulong amount)
+{
+    if(iterator == NULL)
+        return;
+
+    if(amount > iterator->size) {
+        COL_SIZE_OUT_OF_BOUNDS;
+        return;
+    }
+
+    while(amount--) {
+        ctree_node* current = iterator->_iter.vals.start;
+
+        iterator->_iter.vals.start
+            = _ctree_node_next(current, &iterator->states.start, iterator->cmp_key_fn);
+
+        if(iterator->free_key_fn)
+            iterator->free_key_fn(current->key);
+
+        if(iterator->free_val_fn)
+            iterator->free_val_fn(current->value);
+
+        ctree_node_drop(&current);
+    }
+
+    iterator->size -= amount;
+}
+
+/*
+ * 'Drains' from the back the 'iterator' for 'amount' of nodes.
+ * All the drained nodes are also dropped.
+ * Does nothing if 'iterator' is NULL or if the amount is greater than iterator size,
+ * additionally it prints the error msg to stderr.
+ */
+void
+ctree_iterator_drain_back(ctree_iterator* iterator, ulong amount)
+{
+    if(iterator == NULL)
+        return;
+
+    if(amount > iterator->size) {
+        COL_SIZE_OUT_OF_BOUNDS;
+        return;
+    }
+
+    while(amount--) {
+        ctree_node* current = iterator->_iter.vals.end;
+
+        iterator->_iter.vals.end
+            = _ctree_node_next(current, &iterator->states.end, iterator->cmp_key_fn);
+
+        if(iterator->free_key_fn)
+            iterator->free_key_fn(current->key);
+
+        if(iterator->free_val_fn)
+            iterator->free_val_fn(current->value);
+
+        ctree_node_drop(&current);
+    }
+
+    iterator->size -= amount;
+}
+
+/*
+ * Returns the amount of remaining elements in iterator that are yet to be traversed.
+ */
+uint
+ctree_iterator_size(ctree_iterator* iterator)
+{
+    return (iterator) ? iterator->size : 0;
+}
+
+/*
+ * Iterator destructor, drops the iterator and nulls out the pointer that points to it.
+ * If the iterator is not exhausted all of the remaining nodes are also dropped.
+ */
+void
+ctree_iterator_drop(ctree_iterator** iteratorp)
+{
+    ctree_iterator* iterator;
+    if(iteratorp != NULL && (iterator = *iteratorp) != NULL) {
+        ctree_iterator_drain_front(iterator, iterator->size);
+        // Sanity check
+        assert(iterator->size == 0);
+        iterator->size         = 0;
+        iterator->states       = _ctree_iter_states_default();
+        iterator->_iter        = _c_iter_default();
+        iterator->free_key_fn  = NULL;
+        iterator->free_val_fn  = NULL;
+        iterator->clone_key_fn = NULL;
+        iterator->clone_val_fn = NULL;
+        iterator->cmp_key_fn   = NULL;
+        *iteratorp             = NULL;
+        free(iterator);
+    }
+}
+
+/*
+ * Returns the key stored inside the 'node'.
+ * If 'node' is NULL function returns NULL.
+ */
+cptr_t
+ctree_node_key(ctree_node* node)
+{
+    return_val_if_fail(node != NULL, NULL);
+    return node->key;
+}
+
+/*
+ * Returns the value stored inside the 'node'.
+ * If 'node' is NULL function returns NULL.
+ */
+cptr_t
+ctree_node_value(ctree_node* node)
+{
+    return_val_if_fail(node != NULL, NULL);
+    return node->value;
 }

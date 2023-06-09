@@ -36,7 +36,7 @@ clist *clist_new(CFreeValueFn FREE_FN);
  * In case user passes in NULL or the LIST is empty, function
  * returns NULL.
  */
-cptr clist_pop_front(clist *LIST);
+cptr_t clist_pop_front(clist *LIST);
 
 /*
  * Removes the VALUE from the back of the LIST and returns it
@@ -45,7 +45,7 @@ cptr clist_pop_front(clist *LIST);
  * In case user passes in NULL or the LIST is empty, function
  * returns NULL.
  */
-cptr clist_pop_back(clist *LIST);
+cptr_t clist_pop_back(clist *LIST);
 
 /*
  * Inserts the value at the front of the LIST.
@@ -53,7 +53,7 @@ cptr clist_pop_back(clist *LIST);
  * In case user passes in NULL or allocation fails, function
  * returns NULL.
  */
-bool clist_push_front(clist *LIST, cconstptr VALUE);
+bool clist_push_front(clist *LIST, cconstptr_t VALUE);
 
 /*
  * Inserts the VALUE at the back of the LIST.
@@ -61,7 +61,7 @@ bool clist_push_front(clist *LIST, cconstptr VALUE);
  * In case user passes in NULL or allocation fails, function
  * returns NULL.
  */
-bool clist_push_back(clist *LIST, cconstptr VALUE);
+bool clist_push_back(clist *LIST, cconstptr_t VALUE);
 
 /*
  * Returns the length of the LIST.
@@ -82,7 +82,7 @@ int clist_len(const clist *LIST);
  * If you only want to remove (free) the value from the list,
  * use pop functions instead.
  */
-cconstptr clist_front(const clist *LIST);
+cconstptr_t clist_front(const clist *LIST);
 
 /*
  * Returns the pointer to the value at the back of the LIST.
@@ -97,7 +97,7 @@ cconstptr clist_front(const clist *LIST);
  * If you only want to remove (free) the value from the list,
  * use pop functions instead.
  */
-cconstptr clist_back(const clist *LIST);
+cconstptr_t clist_back(const clist *LIST);
 
 /*
  * Tries to pop the value off the LIST returning the pointer of
@@ -107,7 +107,7 @@ cconstptr clist_back(const clist *LIST);
  * In case user passes in NULL for any of the function parameters or
  * value is not found, function returns NULL.
  */
-cptr clist_pop(clist *LIST, cconstptr DATA, CCompareKeyFn CMP);
+cptr_t clist_pop(clist *LIST, cconstptr_t DATA, CCompareKeyFn CMP);
 
 /*
  * Checks if the LIST contains DATA using CMP function.
@@ -117,7 +117,7 @@ cptr clist_pop(clist *LIST, cconstptr DATA, CCompareKeyFn CMP);
  * In case user passes in NULL for any of the function parameters or
  * value is not found, function returns NULL.
  */
-bool clist_contains(const clist *LIST, cconstptr DATA, CCompareKeyFn CMP);
+bool clist_contains(const clist *LIST, cconstptr_t DATA, CCompareKeyFn CMP);
 
 /*
  * Checks if the list contains DATA using CMP function.
@@ -132,7 +132,7 @@ bool clist_contains(const clist *LIST, cconstptr DATA, CCompareKeyFn CMP);
  * In case user passes in NULL for any of the function parameters or
  * value is not found, function returns NULL.
  */
-cconstptr clist_find(const clist *LIST, cconstptr DATA, CCompareKeyFn CMP);
+cconstptr_t clist_find(const clist *LIST, cconstptr_t DATA, CCompareKeyFn CMP);
 
 /*
  * Checks if the list contains DATA using CMP function.
@@ -146,7 +146,7 @@ cconstptr clist_find(const clist *LIST, cconstptr DATA, CCompareKeyFn CMP);
  * In case user passes in NULL for any of the function parameters or
  * value is not found, function returns NULL.
  */
-cptr clist_find_mut(const clist *LIST, cconstptr DATA, CCompareKeyFn CMP);
+cptr_t clist_find_mut(const clist *LIST, cconstptr_t DATA, CCompareKeyFn CMP);
 
 /*
  * Returns TRUE if the LIST is empty.
@@ -185,19 +185,19 @@ void cursor_move_prev(ccursor *CURSOR);
  * Returns value that the CURSOR is pointing at.
  * If CURSOR is NULL function returns NULL.
  */
-cptr cursor_current(ccursor *CURSOR);
+cptr_t cursor_current(ccursor *CURSOR);
 
 /*
  * Peeks at the next value after the CURSOR.
  * If CURSOR is NULL function returns NULL.
  */
-cptr cursor_peek_next(ccursor *CURSOR);
+cptr_t cursor_peek_next(ccursor *CURSOR);
 
 /*
  * Peeks at the prev value before the CURSOR.
  * If CURSOR is NULL function returns NULL.
  */
-cptr cursor_peek_prev(ccursor *CURSOR);
+cptr_t cursor_peek_prev(ccursor *CURSOR);
 
 /*
  * Splits the underlying list before the CURSOR into two lists.

@@ -29,4 +29,19 @@
   fprintf(stderr, "%s:%d: index out of bounds\n", __FILE_NAME__, __LINE__)
 #endif
 
+#ifndef COL_INVALID_CMPFN_ERROR
+#define COL_INVALID_CMPFN_ERROR                                                \
+  fprintf(stderr, "%s:%d: cmp fn is NULL\n", __FILE_NAME__, __LINE__)
+#endif
+
+#ifndef COL_INVALID_KEY_ERROR
+#define COL_INVALID_KEY_ERROR                                                  \
+  fprintf(stderr, "%s:%d: invalid key provided\n", __FILE_NAME__, __LINE__)
+#endif
+
+#ifndef COL_SIZE_OUT_OF_BOUNDS
+#define COL_SIZE_OUT_OF_BOUNDS                                                 \
+  fprintf(stderr, "%s:%d: size out of bounds\n", __FILE_NAME__, __LINE__)
+#endif
+
 #endif
