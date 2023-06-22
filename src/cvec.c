@@ -38,7 +38,8 @@ struct _cvec {
  * Providing 'element_size' of > 0 is mandatory for constructing the vec.
  * 'clear_val_fn' is optional, if user does not provide this function then
  * it's the user's responsibility of clearing the contents of the value,
- * especially if the value is a struct containing internal parts that are malloc'ed.
+ * especially if the value is a struct containing internal parts that are
+ * malloc'ed.
  */
 cvec*
 cvec_new(size_t element_size, CClearValueFn clear_val_fn)
@@ -88,8 +89,8 @@ _cvec_index(cvec* vec, uint idx)
  * If buffer is expanded successfully function returns 0.
  * If new buffer size would overflow 'UINT_MAX' then the buffer is not expanded,
  * err msg gets printed to stderr and function fails returning 1.
- * If buffer size is valid but allocation fails, err msg gets printed to stderr and
- * function returns 1.
+ * If buffer size is valid but allocation fails, err msg gets printed to stderr
+ * and function returns 1.
  */
 static uint
 _cvec_maybe_expand(cvec* vec)
@@ -140,8 +141,9 @@ cvec_clear(cvec* vec)
 
         if(vec->clear_val_fn) {
             uint size = vec->len;
-            while(size--)
+            while(size--) {
                 vec->clear_val_fn(cvec_get_mut(vec, size));
+            }
         }
 
         vec->len = 0;
@@ -150,7 +152,8 @@ cvec_clear(cvec* vec)
 
 /*
  * Clears the enitre 'cvec' including the 'buffer'.
- * All the values are reset to default values same as when 'cvec' is constructed.
+ * All the values are reset to default values same as when 'cvec' is
+ * constructed.
  */
 void
 cvec_clear_with_cap(cvec* vec)
@@ -159,8 +162,9 @@ cvec_clear_with_cap(cvec* vec)
 
         if(vec->clear_val_fn) {
             uint size = vec->len;
-            while(size--)
+            while(size--) {
                 vec->clear_val_fn(cvec_get_mut(vec, size));
+            }
         }
 
         free(vec->buffer);
@@ -172,12 +176,14 @@ cvec_clear_with_cap(cvec* vec)
 }
 
 /*
- * 'cvec' constructor but with custom capacity, returns 'cvec' with the 'capacity' provided.
- * If 'element_size' is 0 function returns NULL, if allocation fails err msg gets
- * printed to stderr and NULL is returned.
+ * 'cvec' constructor but with custom capacity, returns 'cvec' with the
+ * 'capacity' provided. If 'element_size' is 0 function returns NULL, if
+ * allocation fails err msg gets printed to stderr and NULL is returned.
  */
 cvec*
-cvec_with_capacity(size_t element_size, size_t capacity, CClearValueFn clear_val_fn)
+cvec_with_capacity(size_t        element_size,
+                   size_t        capacity,
+                   CClearValueFn clear_val_fn)
 {
     return_val_if_fail(element_size != 0, NULL);
 
@@ -211,12 +217,15 @@ cvec_with_capacity(size_t element_size, size_t capacity, CClearValueFn clear_val
 
 /*
  * Constructs 'cvec' from the 'array'.
- * Copies 'len' elements of size 'element_size' from 'array' into the cvec 'buffer'.
- * If allocation fails, err msg is printed to stderr and function returns NULL,
- * if 'array' is NULL or 'len' is 0 then NULL is returned.
+ * Copies 'len' elements of size 'element_size' from 'array' into the cvec
+ * 'buffer'. If allocation fails, err msg is printed to stderr and function
+ * returns NULL, if 'array' is NULL or 'len' is 0 then NULL is returned.
  */
 cvec*
-cvec_from(cconstptr_t array, size_t len, size_t element_size, CClearValueFn clear_val_fn)
+cvec_from(cconstptr_t   array,
+          size_t        len,
+          size_t        element_size,
+          CClearValueFn clear_val_fn)
 {
     return_val_if_fail(array != NULL && len != 0, NULL);
 
@@ -238,11 +247,11 @@ cvec_from(cconstptr_t array, size_t len, size_t element_size, CClearValueFn clea
 
 /*
  * Returns the copied element of 'vec' at index 'idx'.
- * Use this if you require read/write to the element and expect the value to outlive
- * the 'cvec' it was retrieved from or you just need the duplicate that does not refer to
- * the 'cvec' in any way.
- * If 'idx' is out of bounds then err msg is printed to stderr and NULL is returned.
- * If 'vec' is NULL function returns NULL.
+ * Use this if you require read/write to the element and expect the value to
+ * outlive the 'cvec' it was retrieved from or you just need the duplicate that
+ * does not refer to the 'cvec' in any way. If 'idx' is out of bounds then err
+ * msg is printed to stderr and NULL is returned. If 'vec' is NULL function
+ * returns NULL.
  */
 cptr_t
 cvec_get(const cvec* vec, uint idx)
@@ -273,11 +282,11 @@ cvec_get(const cvec* vec, uint idx)
 /*
  * Copies the element of 'vec' at index 'idx' into 'out'.
  * If element gets copied successfully function returns 0.
- * This function has a precondition that 'out' and element at 'idx' must not overlap
- * or alias each other otherwise it is Undefined Behaviour.
- * If 'idx' is out of bounds, err gets printed to stderr and function returns 1.
- * If 'out' is not the same size as 'element_size' then segfault will teach you
- * a lesson or two.
+ * This function has a precondition that 'out' and element at 'idx' must not
+ * overlap or alias each other otherwise it is Undefined Behaviour. If 'idx' is
+ * out of bounds, err gets printed to stderr and function returns 1. If 'out' is
+ * not the same size as 'element_size' then segfault will teach you a lesson or
+ * two.
  */
 uint
 cvec_get_into(const cvec* vec, uint idx, cptr_t out)
@@ -297,8 +306,9 @@ cvec_get_into(const cvec* vec, uint idx, cptr_t out)
 /*
  * Returns 'const' pointer to the element of 'vec' at index 'idx'.
  * Use this to read values/elements from 'cvec', do not use this
- * if you require mutation of the value or the shallow copy that will outlive the 'cvec'.
- * If 'idx' is out of bounds, err gets printed to stderr and NULL is returned.
+ * if you require mutation of the value or the shallow copy that will outlive
+ * the 'cvec'. If 'idx' is out of bounds, err gets printed to stderr and NULL is
+ * returned.
  */
 cconstptr_t
 cvec_get_ref(const cvec* vec, uint idx)
@@ -315,8 +325,8 @@ cvec_get_ref(const cvec* vec, uint idx)
 
 /*
  * Returns pointer to the element of 'vec' at index 'idx'.
- * This allows mutation of the returned element but is still bound to the lifetime of 'cvec'.
- * Freeing the returned 'element' is Undefined Behaviour.
+ * This allows mutation of the returned element but is still bound to the
+ * lifetime of 'cvec'. Freeing the returned 'element' is Undefined Behaviour.
  * Use this to read/write to the element but you are not allowed to free it.
  * If 'idx' is out of bounds, err gets printed to stderr and NULL is returned.
  */
@@ -334,9 +344,9 @@ cvec_get_mut(cvec* vec, uint idx)
 }
 
 /*
- * Sets the value of the 'vec' 'element' at index 'idx' by shallow copying the 'element'.
- * If 'idx' is out of bounds, err gets printed to stderr and function returns without
- * performing the shallow copy.
+ * Sets the value of the 'vec' 'element' at index 'idx' by shallow copying the
+ * 'element'. If 'idx' is out of bounds, err gets printed to stderr and function
+ * returns without performing the shallow copy.
  */
 void
 cvec_set(cvec* vec, uint idx, cconstptr_t element)
@@ -381,9 +391,9 @@ cvec_push(cvec* vec, cconstptr_t element)
 }
 
 /*
- * Pops/removes the value from the end of the 'vec' returning shallow copy of the element.
- * If allocation for shallow copy fails, err gets printed to stderr and function returns
- * NULL.
+ * Pops/removes the value from the end of the 'vec' returning shallow copy of
+ * the element. If allocation for shallow copy fails, err gets printed to stderr
+ * and function returns NULL.
  */
 cptr_t
 cvec_pop(cvec* vec)
@@ -435,8 +445,9 @@ cvec_capacity(const cvec* vec)
 /*
  * Inserts 'element' into the 'vec' at index 'idx'.
  * If buffer needs to expand and fails function returns 1.
- * If 'idx' is out of bounds, err msg is printed to stderr and function returns 1.
- * If 'idx' is equal to the 'vec' 'len' then the push is performed (check 'cvec_push').
+ * If 'idx' is out of bounds, err msg is printed to stderr and function
+ * returns 1. If 'idx' is equal to the 'vec' 'len' then the push is performed
+ * (check 'cvec_push').
  */
 uint
 cvec_insert(cvec* vec, cconstptr_t element, uint idx)
@@ -460,7 +471,7 @@ cvec_insert(cvec* vec, cconstptr_t element, uint idx)
         cptr_t hole     = cvec_get_mut(vec, idx);
         size_t ele_size = vec->element_size;
 
-        memmove(hole + ele_size, hole, len - idx);
+        memmove(hole + ele_size, hole, (len - idx) * ele_size);
 
         memcpy(hole, element, ele_size);
 
@@ -472,9 +483,9 @@ cvec_insert(cvec* vec, cconstptr_t element, uint idx)
 
 /*
  * Removes the 'element' from 'vec' at index 'idx' and returns its shallow copy.
- * If 'idx' is out of bounds, err msg is printed to stderr and function returns NULL.
- * If allocation for shallow copy fails, err msg is printed to stderr and function
- * returns NULL.
+ * If 'idx' is out of bounds, err msg is printed to stderr and function returns
+ * NULL. If allocation for shallow copy fails, err msg is printed to stderr and
+ * function returns NULL.
  */
 cptr_t
 cvec_remove(cvec* vec, uint idx)
@@ -501,7 +512,7 @@ cvec_remove(cvec* vec, uint idx)
 
     memcpy(ret_val, hole, ele_size);
 
-    memmove(hole, hole + vec->element_size, --vec->len - idx);
+    memmove(hole, hole + vec->element_size, (--vec->len - idx) * ele_size);
 
     return ret_val;
 }
@@ -522,8 +533,9 @@ cvec_drop(cvec** vecp, bool drop_buf)
             vec->capacity     = 0;
             vec->clear_val_fn = NULL;
             vec->buffer       = NULL;
-            if(drop_buf)
+            if(drop_buf) {
                 free(temp);
+            }
             temp = *vecp;
             free(temp);
             *vecp = NULL;
@@ -532,7 +544,7 @@ cvec_drop(cvec** vecp, bool drop_buf)
 }
 
 //********************************************************************************//
-//                                  ITERATORS                                     //
+//                                  ITERATORS //
 //********************************************************************************//
 
 /*
@@ -547,7 +559,8 @@ typedef struct _vec_iter_vals {
 /*
  * Internal only function for constructing 'vec_iter_vals'.
  * Start and end are derived from the passed in vec.
- * Checks for vec pointer and vec length are done before this function gets called.
+ * Checks for vec pointer and vec length are done before this function gets
+ * called.
  */
 vec_iter_vals
 _cvec_iter_vals_new(cvec* vec)
@@ -562,10 +575,10 @@ _cvec_iter_vals_new(cvec* vec)
 }
 
 /*
- * 'cvec_iterator' is consuming iterator, after constructing one from the 'cvec',
- * the vec used for constructing it must not be used anymore, additionally underlying
- * 'cvec' will get 'dropped' and should not be used from that point on (its pointer
- * also gets nulled).
+ * 'cvec_iterator' is consuming iterator, after constructing one from the
+ * 'cvec', the vec used for constructing it must not be used anymore,
+ * additionally underlying 'cvec' will get 'dropped' and should not be used from
+ * that point on (its pointer also gets nulled).
  */
 struct _cvec_iterator {
     size_t        len;
@@ -577,17 +590,18 @@ struct _cvec_iterator {
 /*
  * 'cvec_iterator' constructor, it consumes the 'vec' used for constructing this
  * iterator.
- * 'Consumed' vec after this function returns is not valid anymore and is dropped.
- * Dereferenced pointer ('vecp' that was passed in as argument) is also nulled.
- * After this iterator gets freed it also frees the underlying 'buffer' and calls
- * 'clear_val_fn' on each of the elements (if 'clear_val_fn is not NULL).
- * This is why this iterator is 'consuming' the 'cvec'.
+ * 'Consumed' vec after this function returns is not valid anymore and is
+ * dropped. Dereferenced pointer ('vecp' that was passed in as argument) is also
+ * nulled. After this iterator gets freed it also frees the underlying 'buffer'
+ * and calls 'clear_val_fn' on each of the elements (if 'clear_val_fn is not
+ * NULL). This is why this iterator is 'consuming' the 'cvec'.
  */
 cvec_iterator*
 cvec_into_iter(cvec** vecp)
 {
     cvec* vec;
-    return_val_if_fail(vecp != NULL && (vec = *vecp) != NULL && vec->len != 0, NULL);
+    return_val_if_fail(vecp != NULL && (vec = *vecp) != NULL && vec->len != 0,
+                       NULL);
     cvec_iterator* iterator = memc_malloc(cvec_iterator);
 
 #ifndef COL_MEMORY_CONSTRAINED
@@ -681,18 +695,18 @@ cvec_iterator_next_back(cvec_iterator* iterator)
 
 /*
  * Wrapper around 'free', does the NULL check on 'iterator' and drops/frees it.
- * Additionally the underlying buffer is also dropped and the passed in dereference
- * of 'iteratorp' is nulled.
- * If 'CClearValueFn' was provided to the consumed 'cvec' then this function
- * iterates over each element applying that function to each element.
+ * Additionally the underlying buffer is also dropped and the passed in
+ * dereference of 'iteratorp' is nulled. If 'CClearValueFn' was provided to the
+ * consumed 'cvec' then this function iterates over each element applying that
+ * function to each element.
  *
  * Warning:
  * If the 'CClearValueFn' was provided and the type you stored
- * in 'cvec' is a struct or some object containing members/field and one of those
- * fields is malloc'ed and the provided function frees that allocation, then
- * the values that were yielded by this iterator are no longer valid.
- * This is because this iterator returns a shallow copy of each element and
- * does not clone the entire element recursively.
+ * in 'cvec' is a struct or some object containing members/field and one of
+ * those fields is malloc'ed and the provided function frees that allocation,
+ * then the values that were yielded by this iterator are no longer valid. This
+ * is because this iterator returns a shallow copy of each element and does not
+ * clone the entire element recursively.
  */
 void
 cvec_iterator_drop(cvec_iterator** iteratorp)
@@ -703,8 +717,9 @@ cvec_iterator_drop(cvec_iterator** iteratorp)
             size_t        len  = iterator->len;
             cptr_t        bufp = iterator->buffer;
             CClearValueFn fn   = iterator->clear_val_fn;
-            while(len--)
+            while(len--) {
                 fn(bufp++);
+            }
         }
         cptr_t temp = iterator;
         free(iterator->buffer);
@@ -775,11 +790,10 @@ cvec_iterref_next(cvec_iterref* iterator)
 }
 
 /*
- * Same as 'cvec_iterref_next' except iteration starts from the end of the 'cvec'.
- * Returns NULL if the start and end are same addresses.
- * For example you can start iterating from the front of 'cvec' and later
- * (if you haven't reached end) start iterating from the back, until the ends reach
- * each other.
+ * Same as 'cvec_iterref_next' except iteration starts from the end of the
+ * 'cvec'. Returns NULL if the start and end are same addresses. For example you
+ * can start iterating from the front of 'cvec' and later (if you haven't
+ * reached end) start iterating from the back, until the ends reach each other.
  */
 cconstptr_t
 cvec_iterref_next_back(cvec_iterref* iterator)
@@ -803,8 +817,9 @@ cvec_iterref_next_back(cvec_iterref* iterator)
 void
 cvec_iterref_drop(cvec_iterref* iterator)
 {
-    if(iterator != NULL)
+    if(iterator != NULL) {
         free(iterator);
+    }
 }
 
 /*
@@ -847,10 +862,9 @@ cvec_mut_iterator(cvec* vec)
  * Each subsequent call to 'cvec_itermut_next' yields either and element
  * or NULL if the iterator reached the end.
  * Returned element is pointer to the value of the element in 'cvec'.
- * The value is free to being mutated, additionally value will become invalid if underlying
- * buffer or 'cvec' get freed.
- * This iterator should not be used if any of the other iterators is constructed
- * for the same 'cvec'.
+ * The value is free to being mutated, additionally value will become invalid if
+ * underlying buffer or 'cvec' get freed. This iterator should not be used if
+ * any of the other iterators is constructed for the same 'cvec'.
  */
 cptr_t
 cvec_itermut_next(cvec_itermut* iterator)
@@ -870,9 +884,9 @@ cvec_itermut_next(cvec_itermut* iterator)
 
 /*
  * Iterates over elements starting from the back.
- * Each subsequent call returns element or if iterator reached end aka start and end
- * addresses are same.
- * Everything is same as 'cvec_itermut_next' only the direction of iteration is changed.
+ * Each subsequent call returns element or if iterator reached end aka start and
+ * end addresses are same. Everything is same as 'cvec_itermut_next' only the
+ * direction of iteration is changed.
  */
 cptr_t
 cvec_itermut_next_back(cvec_itermut* iterator)
@@ -896,6 +910,7 @@ cvec_itermut_next_back(cvec_itermut* iterator)
 void
 cvec_itermut_drop(cvec_itermut* iterator)
 {
-    if(iterator != NULL)
+    if(iterator != NULL) {
         free(iterator);
+    }
 }

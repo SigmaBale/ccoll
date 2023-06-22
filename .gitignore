@@ -1,6 +1,7 @@
 ### C ###
 # Vim history
 ~
+.vim_undo
 
 # Build
 build
